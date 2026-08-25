@@ -181,3 +181,56 @@ crop would be taken from the bottom of the FRAME, not the bottom of the VEHICLE.
   plate_text: AP2? AN 0074   (synthetic "AP29 AN 0074" -- 9 OCR-d as ? on rendered font)
   Crop geometry check: PASS (predicted region fully contains drawn plate)
   EasyOCR model: downloaded on first run, cached after
+
+---
+
+### BUG-002: Triple-riding not detected on real video (UNDER INVESTIGATION)
+**Found:** 2026-08-26
+**Symptom:** 240 frames of real motorcycle-with-3-riders video processed, 0 violations detected.
+
+**Debug tooling added (violations.py):**
+Set DEBUG_TRIPLE_RIDING = True in violations.py to get per-frame output like:
+
+  [DBG TR] Frame   42 @1.68s | moto conf=0.76 box=(120,180,310,400) | 2 person(s) in frame | 1 associated (need 3)
+             person[0] conf=0.81  IoU=0.312  -> ASSOC  box=(130,190,250,395)
+             person[1] conf=0.44  IoU=0.003  -> miss   box=(320,180,420,400)
+
+This tells you IMMEDIATELY whether it is:
+  (a) Detection problem: YOLOv8 sees fewer than 3 persons in frame
+  (b) Logic problem: 3 persons detected but IoU too low to associate
+
+**Fixes already applied proactively:**
+- PERSON_MOTO_IOU_THRESHOLD lowered from 0.15 -> 0.10
+  (3-person motorcycle boxes often have partial overlap not full overlap)
+- If debug shows IoU still too low, try 0.05
+
+**How to investigate your video:**
+1. In violations.py, set DEBUG_TRIPLE_RIDING = True
+2. Run: python detection.py --video your_video.mp4 --frame_skip 1
+   (pipe violations logic inline, or add a quick wrapper script)
+3. Look at a handful of frames where the 3 persons are clearly visible
+4. Check: are person confs above 0.40? Are IoU values > 0.10?
+5. If person confs are low (e.g. 0.38-0.42) -> lower CONF_THRESHOLD in detection.py
+   If IoU values are low (e.g. 0.03-0.08) -> lower PERSON_MOTO_IOU_THRESHOLD further
+
+---
+
+### FEATURE: Frame-skipping added to detection.py
+**Date:** 2026-08-26
+**Change:** run_detection() now accepts frame_skip parameter (default=3).
+- Every Nth frame runs YOLOv8 inference
+- Skipped frames are still written to annotated output video (last annotated frame
+  re-used), so output video plays at original speed without judder
+- Also exposed as --frame_skip CLI arg in standalone test
+- Speedup: ~3x on CPU for default frame_skip=3
+- Set frame_skip=1 for maximum accuracy on short/fast events
+
+**Configuration reference update:**
+
+| Setting        | Where          | Default |
+|----------------|----------------|---------|
+| FRAME_SKIP     | detection.py   | 3       |
+
+**Test result:**
+  python detection.py --video test_clip.mp4 --frame_skip 3
+  -> 30 frames read, 10 inferred (frames 0,3,6,9,...) -- PASS

@@ -7,6 +7,14 @@ Three rules:
   3. Illegal Parking   -- vehicle inside a restricted zone for > PARKING_TIMEOUT seconds
 
 Call check_violations(frame_data) each frame; it returns a list of violation dicts.
+
+DEBUG MODE
+----------
+Set DEBUG_TRIPLE_RIDING = True to print per-frame association diagnostics for the
+triple-riding rule.  This tells you whether missed violations are caused by:
+  (a) YOLO failing to detect all 3 persons (detection problem), or
+  (b) persons being detected but not associated with the motorcycle (logic problem).
+Turn it off again (False) once the root cause is identified.
 """
 
 from utils import compute_iou, box_inside_zone, get_center
@@ -19,19 +27,24 @@ from utils import compute_iou, box_inside_zone, get_center
 PARKING_TIMEOUT = 5.0   # seconds  (change this as needed)
 
 # IoU threshold: how much overlap a person box must have with a motorcycle box
-# to be considered "on" that motorcycle
-PERSON_MOTO_IOU_THRESHOLD = 0.15
+# to be considered "on" that motorcycle.
+# TUNING GUIDE:
+#   - If persons are detected but NOT associated -> lower this value (try 0.05)
+#   - If unrelated pedestrians are wrongly counted -> raise it (try 0.25)
+PERSON_MOTO_IOU_THRESHOLD = 0.10
 
 # Restricted zones: list of (x1, y1, x2, y2) rectangles in pixel coordinates.
 # Leave empty [] while testing; set real zone coords from your video later.
 RESTRICTED_ZONES = []
 
 # ---------------------------------------------------------------------------
+# Debug flag -- set True to diagnose missed triple-riding detections
+# ---------------------------------------------------------------------------
+DEBUG_TRIPLE_RIDING = False   # <-- flip to True when investigating missed detections
+
+# ---------------------------------------------------------------------------
 # Internal state (module-level so it persists across frames)
 # ---------------------------------------------------------------------------
-# Tracks how long each vehicle has been inside each zone.
-# Key: (zone_index, vehicle_id)  where vehicle_id = rounded (cx, cy) pair
-# Value: first_seen_sec (float)
 _parking_state = {}    # {(zone_idx, v_id): first_seen_timestamp_sec}
 
 
@@ -92,6 +105,11 @@ def check_violations(frame_data):
     # -- Rule 2: Triple Riding -------------------------------------------
     for moto in motorcycles:
         riders = _find_associated_persons(moto["box"], persons)
+
+        # ── DEBUG: print association details so we can diagnose misses ──
+        if DEBUG_TRIPLE_RIDING:
+            _debug_triple(frame_number, timestamp_sec, moto, persons, riders)
+
         if len(riders) >= 3:
             violations.append({
                 "violation_type": "triple_riding",
@@ -101,6 +119,17 @@ def check_violations(frame_data):
                 "frame_number":   frame_number,
                 "timestamp_sec":  timestamp_sec,
             })
+
+    # ── If debug is on and no motorcycles were detected, still log persons ──
+    if DEBUG_TRIPLE_RIDING and not motorcycles and persons:
+        print(
+            "[DBG TR] Frame {:>4} | NO motorcycle detected | "
+            "{} person(s) in frame (conf: {})".format(
+                frame_number,
+                len(persons),
+                ", ".join("{:.2f}".format(p["confidence"]) for p in persons)
+            )
+        )
 
     # -- Rule 3: Illegal Parking -----------------------------------------
     for v in vehicles:
@@ -164,6 +193,36 @@ def _find_associated_persons(moto_box, persons):
         if iou >= PERSON_MOTO_IOU_THRESHOLD:
             associated.append(p)
     return associated
+
+
+def _debug_triple(frame_number, timestamp_sec, moto, persons, associated):
+    """
+    Print a detailed per-frame summary for one motorcycle.
+    Shows every person's confidence, IoU against this motorcycle, and
+    whether they passed the association threshold.
+    This helps distinguish detection problems from logic problems.
+    """
+    moto_box = moto["box"]
+    lines = []
+    lines.append(
+        "[DBG TR] Frame {:>4} @{:.2f}s | moto conf={:.2f} box={} | "
+        "{} person(s) in frame | {} associated (need 3)".format(
+            frame_number, timestamp_sec,
+            moto["confidence"], moto_box,
+            len(persons), len(associated)
+        )
+    )
+    for i, p in enumerate(persons):
+        iou      = compute_iou(moto_box, p["box"])
+        passed   = "ASSOC" if iou >= PERSON_MOTO_IOU_THRESHOLD else "miss "
+        lines.append(
+            "           person[{}] conf={:.2f}  IoU={:.3f}  -> {}  box={}".format(
+                i, p["confidence"], iou, passed, p["box"]
+            )
+        )
+    if not persons:
+        lines.append("           (no persons detected in this frame)")
+    print("\n".join(lines))
 
 
 def _make_vehicle_id(box):
