@@ -84,7 +84,15 @@ traffic-violation-detection/
 ---
 
 ### MILESTONE 2 -- violations.py + database.py integration
-**Status:** PENDING
+**Status:** COMPLETE
+**Date:** 2026-08-25
+**What was tested:**
+- 10 synthetic frames, frame 5 has 3 persons on motorcycle
+- check_violations() correctly fires triple_riding on frame 5 only
+- insert_violation() stores the record, evidence image saved to evidence/
+- get_all_violations() retrieves row correctly
+- All assertions pass
+
 **What to test:**
 - Run detection.py on a real traffic video
 - Pipe frame_data into check_violations() each frame
@@ -122,3 +130,24 @@ streamlit run app.py
 - Always check this file first.
 - Git history has one commit per milestone -- use `git log --oneline` to see progress.
 - detect_helmet_violation() in violations.py is intentionally a stub -- do NOT fill it in without the student custom model.
+
+### MILESTONE 3 -- report.py (PDF + CSV)
+**Status:** COMPLETE
+**Date:** 2026-08-25
+**What was tested:**
+- generate_reports() called with 1 violation in DB
+- CSV saved to output/violations_report.csv -- headers + data row correct
+- PDF saved to output/violations_report.pdf -- 4.3 KB, builds without errors
+
+**Bug fixed:**
+- ReportLab v5.0 removed the Small stylesheet style -- replaced with Normal
+
+---
+
+### MILESTONE 4 -- anpr.py (plate crop + OCR)
+**Status:** PENDING (needs real vehicle image to test EasyOCR properly)
+
+### MILESTONE 5 -- app.py (Streamlit full integration)
+**Status:** PENDING
+
+---
