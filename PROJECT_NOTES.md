@@ -151,3 +151,33 @@ streamlit run app.py
 **Status:** PENDING
 
 ---
+
+---
+
+## Bug Log
+
+### BUG-001: ANPR cropped from wrong region (FIXED)
+**Found:** 2026-08-26
+**Symptom:** detect_and_read_plate() was described as cropping from the bottom 35%
+of the vehicle box, but the standalone test defaulted the vehicle box to the entire
+frame -- meaning for any scene where the vehicle is not the whole image, the plate
+crop would be taken from the bottom of the FRAME, not the bottom of the VEHICLE.
+
+**Root cause:** The crop logic itself was relative to vehicle_box (correct), but:
+1. The standalone test passed (0, 0, w, h) as the box -- so it worked fine for
+   tightly-cropped vehicle photos but silently wrong for full scene images.
+2. There was no horizontal centering -- it used the full vehicle width even though
+   plates only occupy ~60% of the vehicle width horizontally.
+
+**Fix applied (anpr.py):**
+- Vertical : crop bottom 35% of vehicle box height (unchanged, but now explicit)
+- Horizontal: crop centre 60% of vehicle box width (20% margin each side) -- NEW
+- Standalone test now accepts --box X1 Y1 X2 Y2 so you can simulate real detections
+- Debug overlay saved to evidence/anpr_debug_9999.jpg for visual verification
+- Safety fallback: if margins collapse the box (tiny vehicle), revert to full width
+
+**Test result:**
+  python anpr.py --image test_scene.jpg --box 200 150 700 500
+  plate_text: AP2? AN 0074   (synthetic "AP29 AN 0074" -- 9 OCR-d as ? on rendered font)
+  Crop geometry check: PASS (predicted region fully contains drawn plate)
+  EasyOCR model: downloaded on first run, cached after
