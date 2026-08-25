@@ -26,6 +26,9 @@ from utils import compute_iou, box_inside_zone, get_center
 # How many seconds a vehicle must be stationary inside a zone to be flagged
 PARKING_TIMEOUT = 5.0   # seconds  (change this as needed)
 
+# Cooldown (in seconds) to prevent spamming the same violation type every frame
+COOLDOWN_SECONDS = 5.0
+
 # IoU threshold: how much overlap a person box must have with a motorcycle box
 # to be considered "on" that motorcycle.
 # TUNING GUIDE:
@@ -40,18 +43,20 @@ RESTRICTED_ZONES = []
 # ---------------------------------------------------------------------------
 # Debug flag -- set True to diagnose missed triple-riding detections
 # ---------------------------------------------------------------------------
-DEBUG_TRIPLE_RIDING = False   # <-- flip to True when investigating missed detections
+DEBUG_TRIPLE_RIDING = True   # <-- flip to True when investigating missed detections
 
 # ---------------------------------------------------------------------------
 # Internal state (module-level so it persists across frames)
 # ---------------------------------------------------------------------------
 _parking_state = {}    # {(zone_idx, v_id): first_seen_timestamp_sec}
+_last_logged_time = {} # {violation_type: last_logged_timestamp_sec}
 
 
 def reset_state():
     """Call this at the start of each new video to clear parking state."""
-    global _parking_state
+    global _parking_state, _last_logged_time
     _parking_state = {}
+    _last_logged_time = {}
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +88,10 @@ def check_violations(frame_data):
 
     violations = []
 
+    def can_log(v_type):
+        last_time = _last_logged_time.get(v_type, -999999.0)
+        return (timestamp_sec - last_time) >= COOLDOWN_SECONDS
+
     # Separate detections by class for convenience
     persons     = [d for d in detections if d["class_name"] == "person"]
     motorcycles = [d for d in detections if d["class_name"] == "motorcycle"]
@@ -93,14 +102,16 @@ def check_violations(frame_data):
         riders = _find_associated_persons(moto["box"], persons)
         for rider in riders:
             if detect_helmet_violation(rider, moto, frame_data.get("annotated_frame")):
-                violations.append({
-                    "violation_type": "helmet",
-                    "vehicle_type":   "motorcycle",
-                    "confidence":     moto["confidence"],
-                    "box":            moto["box"],
-                    "frame_number":   frame_number,
-                    "timestamp_sec":  timestamp_sec,
-                })
+                if can_log("helmet"):
+                    violations.append({
+                        "violation_type": "helmet",
+                        "vehicle_type":   "motorcycle",
+                        "confidence":     moto["confidence"],
+                        "box":            moto["box"],
+                        "frame_number":   frame_number,
+                        "timestamp_sec":  timestamp_sec,
+                    })
+                    _last_logged_time["helmet"] = timestamp_sec
 
     # -- Rule 2: Triple Riding -------------------------------------------
     for moto in motorcycles:
@@ -111,14 +122,16 @@ def check_violations(frame_data):
             _debug_triple(frame_number, timestamp_sec, moto, persons, riders)
 
         if len(riders) >= 3:
-            violations.append({
-                "violation_type": "triple_riding",
-                "vehicle_type":   "motorcycle",
-                "confidence":     moto["confidence"],
-                "box":            moto["box"],
-                "frame_number":   frame_number,
-                "timestamp_sec":  timestamp_sec,
-            })
+            if can_log("triple_riding"):
+                violations.append({
+                    "violation_type": "triple_riding",
+                    "vehicle_type":   "motorcycle",
+                    "confidence":     moto["confidence"],
+                    "box":            moto["box"],
+                    "frame_number":   frame_number,
+                    "timestamp_sec":  timestamp_sec,
+                })
+                _last_logged_time["triple_riding"] = timestamp_sec
 
     # ── If debug is on and no motorcycles were detected, still log persons ──
     if DEBUG_TRIPLE_RIDING and not motorcycles and persons:
@@ -140,14 +153,16 @@ def check_violations(frame_data):
                 if key not in _parking_state:
                     _parking_state[key] = timestamp_sec   # first time seen
                 elif timestamp_sec - _parking_state[key] >= PARKING_TIMEOUT:
-                    violations.append({
-                        "violation_type": "illegal_parking",
-                        "vehicle_type":   v["class_name"],
-                        "confidence":     v["confidence"],
-                        "box":            v["box"],
-                        "frame_number":   frame_number,
-                        "timestamp_sec":  timestamp_sec,
-                    })
+                    if can_log("illegal_parking"):
+                        violations.append({
+                            "violation_type": "illegal_parking",
+                            "vehicle_type":   v["class_name"],
+                            "confidence":     v["confidence"],
+                            "box":            v["box"],
+                            "frame_number":   frame_number,
+                            "timestamp_sec":  timestamp_sec,
+                        })
+                        _last_logged_time["illegal_parking"] = timestamp_sec
                     # Reset timer so we don't spam violations every frame
                     _parking_state[key] = timestamp_sec
             else:

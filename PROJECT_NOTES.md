@@ -234,3 +234,18 @@ This tells you IMMEDIATELY whether it is:
 **Test result:**
   python detection.py --video test_clip.mp4 --frame_skip 3
   -> 30 frames read, 10 inferred (frames 0,3,6,9,...) -- PASS
+
+---
+
+### BUG-003: Spamming repeated violations (FIXED)
+**Found:** 2026-08-26
+**Symptom:** Triple-riding (and other continuous) violations were being logged every single frame they appeared, resulting in 28+ separate violation records for a 4-second clip of the same event.
+
+**Fix applied (violations.py):**
+- Added deduplication/cooldown logic per violation type.
+- Added COOLDOWN_SECONDS = 5.0 to the configuration constants at the top of the file.
+- _last_logged_time dict now tracks the timestamp of the last logged event for each violation type independently.
+- check_violations() now enforces this cooldown using the can_log(v_type) helper, preventing the database from being spammed.
+
+**Test result:**
+- Synthetic frame feed confirmed it fires on frame 1, skips frames for the next 5 seconds, and fires exactly once again after the cooldown expires.
