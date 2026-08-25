@@ -123,12 +123,12 @@ def _build_pdf(df, pdf_path):
         if img_path and os.path.exists(str(img_path)):
             caption = (f"ID {row['id']} | {row['violation_type']} | "
                        f"Frame {row['frame_number']} | Plate: {row.get('plate_text','N/A')}")
-            story.append(Paragraph(caption, styles["Small"]))
+            story.append(Paragraph(caption, styles["Normal"]))
             try:
                 img = Image(img_path, width=5*cm, height=3*cm)
                 story.append(img)
             except Exception:
-                story.append(Paragraph(f"[image not renderable: {img_path}]", styles["Small"]))
+                story.append(Paragraph(f"[image not renderable: {img_path}]", styles["Normal"]))
             story.append(Spacer(1, 0.2*cm))
             thumb_added = True
 
