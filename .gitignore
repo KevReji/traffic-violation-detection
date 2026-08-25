@@ -1,0 +1,7 @@
+violations.db
+__pycache__/
+*.pyc
+evidence/
+output/
+*.mp4
+.streamlit/
