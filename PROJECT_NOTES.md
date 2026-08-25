@@ -53,7 +53,7 @@ traffic-violation-detection/
 ## Build Log
 
 ### MILESTONE 1 -- Project scaffold + detection.py
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 **Date:** 2026-08-25
 **What is built:**
 - Full folder structure created
@@ -79,7 +79,18 @@ traffic-violation-detection/
 
 ---
 
-## NEXT: MILESTONE 2 -- violations.py (triple riding first)
+## NEXT: MILESTONE 2 -- violations.py (full integration test)
+
+---
+
+### MILESTONE 2 -- violations.py + database.py integration
+**Status:** PENDING
+**What to test:**
+- Run detection.py on a real traffic video
+- Pipe frame_data into check_violations() each frame
+- Insert every violation into SQLite via insert_violation()
+- Verify rows appear in DB
+- Triple riding logic already verified in isolation (PASS)
 
 ---
 
