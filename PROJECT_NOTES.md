@@ -261,3 +261,19 @@ This tells you IMMEDIATELY whether it is:
   - *Note & Limitations*: This is a simplified heuristic using size-growth as a proxy for "approaching the camera". It is suitable for a single forward-facing dashcam or CCTV on a one-way path where vehicles should only be moving *away* from the camera (shrinking box).
 - **Deduplication**: Cooldown applies per `track_id` specifically for this rule, meaning multiple different wrong-way vehicles can each trigger a violation once.
 - **Testing**: Confirmed on `test_videos/dashcam_test.mp4` with debug logs showing track IDs growing (e.g., track_id 44, ratio > 1.42) and successfully logging violations.
+
+---
+
+### FEATURE: Generic Confidence/Review System (Foundational)
+**Date:** 2026-08-26
+**Change:** Built a reusable confidence-evaluation layer (confidence.py) to systematically flag marginal violations for human review.
+- **Layer:** confidence.py exports evaluate_confidence(), a single pure function to classify a detection as confirmed or 
+eview_needed.
+- **Thresholds (Configurable):**
+  - LOW_CONFIDENCE_THRESHOLD = 0.5 (if YOLO confidence drops below this)
+  - MIN_OBJECT_AREA_RATIO = 0.01 (if object box area / frame area drops below this, i.e., too small/distant)
+  - TRACKING_STABILITY_MIN_FRAMES = 5 (if a tracking ID survives fewer than 5 frames)
+- **Database updates:** database.py modified to support two new columns in the iolations table: 
+eview_needed (BOOLEAN DEFAULT 0) and 
+eview_reason (TEXT). It also contains a safe migration script to upgrade existing databases seamlessly.
+- **Status:** Unit tested in isolation. *Not yet wired into specific violation types* (helmet, triple_riding, etc.) -- this acts as the generic engine ready for the next integration step.

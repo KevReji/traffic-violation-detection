@@ -35,17 +35,28 @@ def init_db():
             confidence_score   REAL NOT NULL,
             plate_text         TEXT,                -- OCR result (may be NULL or inaccurate)
             evidence_image_path TEXT,               -- path to cropped vehicle image
-            plate_image_path    TEXT                -- path to cropped plate image (may be NULL)
+            plate_image_path    TEXT,               -- path to cropped plate image (may be NULL)
+            review_needed       BOOLEAN DEFAULT 0,  -- 1 if flagged for manual review
+            review_reason       TEXT                -- reason for review (e.g. 'low_confidence')
         )
     """)
     conn.commit()
+    
+    # Safely migrate existing databases
+    try:
+        conn.execute("ALTER TABLE violations ADD COLUMN review_needed BOOLEAN DEFAULT 0")
+        conn.execute("ALTER TABLE violations ADD COLUMN review_reason TEXT")
+    except sqlite3.OperationalError:
+        pass  # Columns already exist
+
     conn.close()
     print("[database] DB initialised:", DB_PATH)
 
 
 def insert_violation(timestamp, frame_number, violation_type, vehicle_type,
                      confidence_score, plate_text=None,
-                     evidence_image_path=None, plate_image_path=None):
+                     evidence_image_path=None, plate_image_path=None,
+                     review_needed=False, review_reason=None):
     """
     Insert one violation record and return the new row id.
 
@@ -79,6 +90,14 @@ def clear_db():
     conn = get_connection()
     conn.execute("DELETE FROM violations")
     conn.commit()
+    
+    # Safely migrate existing databases
+    try:
+        conn.execute("ALTER TABLE violations ADD COLUMN review_needed BOOLEAN DEFAULT 0")
+        conn.execute("ALTER TABLE violations ADD COLUMN review_reason TEXT")
+    except sqlite3.OperationalError:
+        pass  # Columns already exist
+
     conn.close()
     print("[database] All rows deleted.")
 
