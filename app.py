@@ -36,8 +36,169 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# Sidebar -- all controls live here
+# Custom CSS -- dark-mode command center theme
 # ---------------------------------------------------------------------------
+
+def apply_custom_css():
+    """
+    Inject custom CSS to style the dashboard as a dark security command center.
+
+    Targets used:
+      • div[data-testid="stMetric"]   — Streamlit's metric card container (stable API)
+      • .badge-confirmed / .badge-review — pill badges for use in st.markdown()
+      • .cctv-feed                     — wrapper div for the live video preview
+    """
+    st.markdown(
+        """
+        <style>
+        /* ── Global app background ─────────────────────────────────────────── */
+        .stApp {
+            background-color: #0E1117;
+        }
+
+        /* ── Sidebar ───────────────────────────────────────────────────────── */
+        section[data-testid="stSidebar"] {
+            background-color: #161B22;
+            border-right: 1px solid #30363D;
+        }
+
+        /* ── Metric cards ──────────────────────────────────────────────────── */
+        div[data-testid="stMetric"] {
+            background-color: #1E222D;
+            border: 1px solid #30363D;
+            border-radius: 10px;
+            padding: 16px 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+        }
+
+        /* Metric label (small text above the number) */
+        div[data-testid="stMetric"] label {
+            color: #8B949E !important;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        /* Metric value (the big number) */
+        div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+            color: #E6EDF3 !important;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        /* ── Tab bar ───────────────────────────────────────────────────────── */
+        button[data-baseweb="tab"] {
+            background-color: transparent;
+            color: #8B949E;
+            border-bottom: 2px solid transparent;
+            font-weight: 600;
+        }
+        button[data-baseweb="tab"][aria-selected="true"] {
+            color: #58A6FF;
+            border-bottom: 2px solid #58A6FF;
+        }
+
+        /* ── Violation status badge classes ────────────────────────────────── */
+        /* Usage in app.py:
+               st.markdown('<span class="badge-confirmed">Confirmed</span>',
+                           unsafe_allow_html=True)
+               st.markdown('<span class="badge-review">Needs Review</span>',
+                           unsafe_allow_html=True)
+        */
+        .badge-confirmed {
+            display: inline-block;
+            background-color: #196C2E;
+            color: #3FB950;
+            border: 1px solid #3FB950;
+            border-radius: 20px;
+            padding: 2px 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .badge-review {
+            display: inline-block;
+            background-color: #5A3B00;
+            color: #F0883E;
+            border: 1px solid #F0883E;
+            border-radius: 20px;
+            padding: 2px 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        /* ── CCTV live feed container ──────────────────────────────────────── */
+        /* Usage: wrap live_preview with:
+               st.markdown('<div class="cctv-feed">', unsafe_allow_html=True)
+               live_preview = st.empty()
+               st.markdown('</div>', unsafe_allow_html=True)
+           (see processing block below)
+        */
+        .cctv-feed {
+            border: 2px solid #1F6FEB;
+            border-radius: 8px;
+            padding: 4px;
+            box-shadow: 0 0 12px rgba(31, 111, 235, 0.4);
+            position: relative;
+        }
+        /* "LIVE" indicator in top-left corner of the feed */
+        .cctv-feed::before {
+            content: "⬤  LIVE";
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            color: #F85149;
+            font-size: 0.65rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            z-index: 10;
+            text-shadow: 0 0 6px rgba(248, 81, 73, 0.8);
+            pointer-events: none;
+        }
+
+        /* ── Dataframe table ───────────────────────────────────────────────── */
+        div[data-testid="stDataFrame"] {
+            border: 1px solid #30363D;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        /* ── Download buttons ──────────────────────────────────────────────── */
+        div[data-testid="stDownloadButton"] > button {
+            background-color: #1F6FEB;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        div[data-testid="stDownloadButton"] > button:hover {
+            background-color: #388BFD;
+        }
+
+        /* ── Primary "Run Detection" button ────────────────────────────────── */
+        div[data-testid="stButton"] > button[kind="primary"] {
+            background-color: #238636;
+            color: #FFFFFF;
+            border: 1px solid #2EA043;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+        div[data-testid="stButton"] > button[kind="primary"]:hover {
+            background-color: #2EA043;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+apply_custom_css()
+
+
 with st.sidebar:
     st.title("🚦 Traffic Violation\nDetection System")
     st.markdown("---")
@@ -112,7 +273,10 @@ if run_btn:
 
     progress_bar  = st.progress(0, text="Starting…")
     status_text   = st.empty()
-    live_preview  = st.empty()   # live annotated frame updated every processed frame
+    # Wrap the live feed in a styled div -- CSS defined in apply_custom_css()
+    st.markdown('<div class="cctv-feed">', unsafe_allow_html=True)
+    live_preview  = st.empty()   # updated every processed frame with annotated BGR→RGB frame
+    st.markdown('</div>', unsafe_allow_html=True)
 
     violation_count = 0
 
