@@ -44,6 +44,12 @@ if uploaded:
         index=1
     )
 
+    # Wrong-way detection toggle -- disable on wide-angle / fisheye CCTV to avoid
+    # false positives caused by lens distortion affecting apparent vehicle size.
+    enable_wrong_way = st.checkbox("Enable Wrong-Way Detection", value=True,
+        help="Uses bounding-box size growth to flag vehicles approaching the camera. "
+             "Works best on straight/undistorted footage. Disable for fisheye CCTV.")
+
     if st.button("Run Detection"):
         clear_db()   # fresh run -- clear previous results
         reset_state()
@@ -76,7 +82,7 @@ if uploaded:
                 status_text.text(f"Processing frame {fn}/{total} ...")
 
             # Check for violations this frame
-            violations = check_violations(frame_data)
+            violations = check_violations(frame_data, enable_wrong_way=enable_wrong_way)
 
             for v in violations:
                 # Crop evidence image of the vehicle

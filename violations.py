@@ -76,18 +76,21 @@ def reset_state():
 # Public API
 # ---------------------------------------------------------------------------
 
-def check_violations(frame_data):
+def check_violations(frame_data, enable_wrong_way=True):
     """
     Analyse one frame's detections and return all violations found.
 
     Parameters
     ----------
     frame_data : dict  -- the dict yielded by run_detection() in detection.py
+    enable_wrong_way : bool  -- set False to skip wrong-way detection entirely
+                               (saves CPU; recommended for fisheye/wide-angle CCTV
+                               where lens distortion causes false positives)
 
     Returns
     -------
     list of dicts, each with:
-        violation_type  : str   -- "helmet" | "triple_riding" | "illegal_parking"
+        violation_type  : str   -- "helmet" | "triple_riding" | "illegal_parking" | "wrong_way"
         vehicle_type    : str   -- detected class name
         confidence      : float -- detection confidence of primary vehicle
         box             : (x1,y1,x2,y2)  -- bounding box of the vehicle
@@ -184,56 +187,59 @@ def check_violations(frame_data):
                 # Vehicle left the zone -- remove from tracking
                 _parking_state.pop((zone_idx, v_id), None)
 
-    # -- Rule 4: Wrong Way Driving ---------------------------------------
-    for v in vehicles:
-        track_id = v.get("track_id")
-        if track_id is None:
-            continue
-            
-        x1, y1, x2, y2 = v["box"]
-        area = (x2 - x1) * (y2 - y1)
-        
-        history = _track_history.setdefault(track_id, [])
-        history.append((frame_number, area))
-        
-        if len(history) > WRONG_WAY_HISTORY_FRAMES:
-            history.pop(0)
-            
-        if len(history) >= MIN_REVIEW_TRACKING_FRAMES:
-            oldest_area = history[0][1]
-            current_area = area
-            growth_ratio = current_area / oldest_area if oldest_area > 0 else 0
-            
-            if DEBUG_WRONG_WAY:
-                print(f"[DBG WW] Frame {frame_number:>4} | track_id={track_id} | ratio={growth_ratio:.2f} (old={oldest_area}, new={current_area})")
+    # -- Rule 4: Wrong Way Driving (only when feature is enabled) -----------
+    if enable_wrong_way:
+        for v in vehicles:
+            track_id = v.get("track_id")
+            if track_id is None:
+                continue
                 
-            # If the vehicle bounding box has grown by the threshold over the history window,
-            # it indicates the vehicle is approaching the camera. In a forward-facing dashcam 
-            # scenario on a one-way path (or single-direction lane), approaching means wrong way.
-            is_strict = (growth_ratio >= WRONG_WAY_SIZE_GROWTH_THRESHOLD and len(history) >= WRONG_WAY_HISTORY_FRAMES)
-            is_review = (growth_ratio >= 1.1) and (v.get("low_confidence_detection") or len(history) < WRONG_WAY_HISTORY_FRAMES)
+            x1, y1, x2, y2 = v["box"]
+            area = (x2 - x1) * (y2 - y1)
             
-            if is_strict or is_review:
-                if can_log("wrong_way", track_id):
-                    bw = v["box"][2] - v["box"][0]
-                    bh = v["box"][3] - v["box"][1]
-                    rn, rr = evaluate_confidence(v["confidence"], bw*bh, frame_area, len(history))
-                    if len(history) < WRONG_WAY_HISTORY_FRAMES:
-                        rn, rr = True, "insufficient_tracking_history"
-                    elif v.get("low_confidence_detection"):
-                        rn, rr = True, "low_confidence_detection"
-                    violations.append({
-                        "violation_type": "wrong_way",
-                        "vehicle_type":   v["class_name"],
-                        "confidence":     v["confidence"],
-                        "box":            v["box"],
-                        "frame_number":   frame_number,
-                        "timestamp_sec":  timestamp_sec,
-                        "review_needed":  rn,
-                        "review_reason":  rr,
-                    })
-                    if DEBUG_WRONG_WAY:
-                        print(f"         >>> WRONG WAY VIOLATION LOGGED for track_id={track_id}")
+            # Accumulate bounding-box area history for this track.
+            # Skipped entirely when enable_wrong_way=False to save CPU.
+            history = _track_history.setdefault(track_id, [])
+            history.append((frame_number, area))
+            
+            if len(history) > WRONG_WAY_HISTORY_FRAMES:
+                history.pop(0)
+                
+            if len(history) >= MIN_REVIEW_TRACKING_FRAMES:
+                oldest_area = history[0][1]
+                current_area = area
+                growth_ratio = current_area / oldest_area if oldest_area > 0 else 0
+                
+                if DEBUG_WRONG_WAY:
+                    print(f"[DBG WW] Frame {frame_number:>4} | track_id={track_id} | ratio={growth_ratio:.2f} (old={oldest_area}, new={current_area})")
+                    
+                # If the vehicle bounding box has grown by the threshold over the history window,
+                # it indicates the vehicle is approaching the camera. In a forward-facing dashcam 
+                # scenario on a one-way path (or single-direction lane), approaching means wrong way.
+                is_strict = (growth_ratio >= WRONG_WAY_SIZE_GROWTH_THRESHOLD and len(history) >= WRONG_WAY_HISTORY_FRAMES)
+                is_review = (growth_ratio >= 1.1) and (v.get("low_confidence_detection") or len(history) < WRONG_WAY_HISTORY_FRAMES)
+                
+                if is_strict or is_review:
+                    if can_log("wrong_way", track_id):
+                        bw = v["box"][2] - v["box"][0]
+                        bh = v["box"][3] - v["box"][1]
+                        rn, rr = evaluate_confidence(v["confidence"], bw*bh, frame_area, len(history))
+                        if len(history) < WRONG_WAY_HISTORY_FRAMES:
+                            rn, rr = True, "insufficient_tracking_history"
+                        elif v.get("low_confidence_detection"):
+                            rn, rr = True, "low_confidence_detection"
+                        violations.append({
+                            "violation_type": "wrong_way",
+                            "vehicle_type":   v["class_name"],
+                            "confidence":     v["confidence"],
+                            "box":            v["box"],
+                            "frame_number":   frame_number,
+                            "timestamp_sec":  timestamp_sec,
+                            "review_needed":  rn,
+                            "review_reason":  rr,
+                        })
+                        if DEBUG_WRONG_WAY:
+                            print(f"         >>> WRONG WAY VIOLATION LOGGED for track_id={track_id}")
 
     return violations
 

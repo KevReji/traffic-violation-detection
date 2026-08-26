@@ -141,6 +141,8 @@ traffic-violation-detection/
 | Evidence folder          | utils.py               | ./evidence/      |
 | Output video folder      | utils.py               | ./output/        |
 | DB path                  | database.py            | violations.db    |
+| FRAME_SKIP               | detection.py           | 3                |
+| Enable Wrong-Way Detection | app.py UI checkbox   | True (enabled)   |
 
 ---
 
