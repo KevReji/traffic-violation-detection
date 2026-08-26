@@ -18,14 +18,26 @@ def ensure_dirs():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-def crop_region(frame, box):
+def crop_region(frame, box, padding_pct=0.0):
     """
     Crop a rectangular region from a frame.
     box: (x1, y1, x2, y2) in pixel coords (integers).
+    padding_pct: fraction of width/height to add as margin (e.g. 0.20 = 20% on each side).
     Returns the cropped numpy array, or None if coords are invalid.
     """
     x1, y1, x2, y2 = [int(v) for v in box]
     h, w = frame.shape[:2]
+    
+    bw = x2 - x1
+    bh = y2 - y1
+    px = int(bw * padding_pct)
+    py = int(bh * padding_pct)
+    
+    x1 = x1 - px
+    y1 = y1 - py
+    x2 = x2 + px
+    y2 = y2 + py
+    
     # Clamp to frame bounds so we never go out of range
     x1, y1 = max(0, x1), max(0, y1)
     x2, y2 = min(w, x2), min(h, y2)

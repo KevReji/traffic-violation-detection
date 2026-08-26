@@ -80,7 +80,7 @@ if uploaded:
 
             for v in violations:
                 # Crop evidence image of the vehicle
-                crop = crop_region(frame_data["annotated_frame"], v["box"])
+                crop = crop_region(frame_data["original_frame"], v["box"], padding_pct=0.20)
                 ts   = datetime.datetime.fromtimestamp(
                     datetime.datetime.now().timestamp()
                 ).isoformat()
@@ -104,7 +104,7 @@ if uploaded:
 
                 # ANPR
                 anpr_result = detect_and_read_plate(
-                    frame_data["annotated_frame"], v["box"], vid)
+                    frame_data["original_frame"], v["box"], vid)
 
                 # Update the row with image paths + plate text
                 import sqlite3

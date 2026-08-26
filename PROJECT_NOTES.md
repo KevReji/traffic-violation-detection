@@ -305,3 +305,14 @@ eview_reason flags due to a string-replacement bug, causing them to silently fai
 eview_needed and 
 eview_reason columns are correctly populated in the database.
 - **Verification:** Ran a full end-to-end simulated run on cctv_wrongway_test.mp4. Confirmed the SQL DB now successfully captures row items matching {'review_needed': 1, 'review_reason': 'insufficient_tracking_history'} exactly as expected.
+
+---
+
+### BUG FIX: Evidence Cropping Logic
+**Date:** 2026-08-26
+**Issue:** pp.py and npr.py were cropping evidence images and license plates directly from the nnotated_frame. This meant YOLO bounding boxes and class-name text were permanently burned into the evidence images, obscuring the vehicles and actively interfering with ANPR OCR. Furthermore, the crops were razor-tight, removing visual context.
+**Resolution:**
+- **Original Frame Passthrough:** Modified detection.py to copy the frame *before* any OpenCV drawing functions occur, and yield it as original_frame alongside nnotated_frame.
+- **Padded Cropping:** Updated utils.py crop_region() to accept a padding_pct argument (defaulting to 0.0 but set to 0.20 when called). It expands the bounding box by 20% on all sides before cropping, clamping safely to the video bounds.
+- **App Update:** Updated pp.py to pass rame_data["original_frame"] to both the evidence image crop (with padding_pct=0.20) and the detect_and_read_plate ANPR call.
+- **Result:** Evidence images are now completely clean (no UI overlays) and provide 20% extra padding for clear context. Number plate OCR is no longer fed YOLO text labels.

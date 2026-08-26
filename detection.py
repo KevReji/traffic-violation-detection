@@ -111,6 +111,7 @@ def run_detection(video_path, model=None, save_output=True, frame_skip=FRAME_SKI
                 results    = model.track(frame, persist=True, tracker="bytetrack.yaml", conf=REVIEW_CONF_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
                 detections = []
 
+                original_frame = frame.copy()
                 for box_obj in results[0].boxes:
                     cls_id = int(box_obj.cls[0])
                     if cls_id not in RELEVANT_CLASSES:
@@ -153,6 +154,7 @@ def run_detection(video_path, model=None, save_output=True, frame_skip=FRAME_SKI
                     "frame_height":    height,
                     "detections":      detections,
                     "annotated_frame": frame,
+                    "original_frame":  original_frame,
                 }
 
             else:
