@@ -290,3 +290,18 @@ eview_needed=False (or True if it fails generic evaluations like being too small
   2. *Review Path:* If a detection is marked "low_confidence_detection": True, or if tracking history is too short but at least 3 frames (MIN_REVIEW_TRACKING_FRAMES = 3), the violation is explicitly allowed to fire but is **forced** to 
 eview_needed=True with reasons like "low_confidence_detection" or "insufficient_tracking_history".
 - **Result:** Successfully tested on cctv_wrongway_test.mp4. Vehicles that were previously completely lost due to tracking instability now fire and are correctly routed to the database tagged with "insufficient_tracking_history", without polluting the strict automated enforcement data.
+
+---
+
+### FIX + FEATURE: App.py Model Mismatch Bug + Model Selector Dropdown
+**Date:** 2026-08-26
+**Issue:** pp.py was silently defaulting to yolov8n.pt, overriding the yolov8s.pt testing configuration we used to validate the CCTV logic. Additionally, the SQL statement in database.py's insert_violation() had not been successfully updated to store the new 
+eview_needed and 
+eview_reason flags due to a string-replacement bug, causing them to silently fail to log to the DB even when flagged correctly by the engine.
+**Resolution:**
+- **App.py Model Selector UI:** Added a st.selectbox right above the 'Run Detection' button allowing the user to select from YOLOv8n (Fast), YOLOv8s (Balanced) (New Default), and YOLOv8m (Accurate, Slower).
+- **Pipeline Integration:** pp.py now maps the UI choice to the correct .pt file and passes it directly to detection.py's load_model(). The status text output also now explicitly prints which model was used in the final summary (e.g. Processed using YOLOv8s (Balanced)).
+- **Database Insert Fix:** Patched the underlying SQL INSERT INTO violations query in database.py so the 
+eview_needed and 
+eview_reason columns are correctly populated in the database.
+- **Verification:** Ran a full end-to-end simulated run on cctv_wrongway_test.mp4. Confirmed the SQL DB now successfully captures row items matching {'review_needed': 1, 'review_reason': 'insufficient_tracking_history'} exactly as expected.

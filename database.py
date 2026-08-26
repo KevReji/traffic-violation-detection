@@ -67,10 +67,12 @@ def insert_violation(timestamp, frame_number, violation_type, vehicle_type,
     cur  = conn.execute("""
         INSERT INTO violations
             (timestamp, frame_number, violation_type, vehicle_type,
-             confidence_score, plate_text, evidence_image_path, plate_image_path)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             confidence_score, plate_text, evidence_image_path, plate_image_path,
+             review_needed, review_reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (timestamp, frame_number, violation_type, vehicle_type,
-             confidence_score, plate_text, evidence_image_path, plate_image_path))
+             confidence_score, plate_text, evidence_image_path, plate_image_path,
+             review_needed, review_reason))
     conn.commit()
     row_id = cur.lastrowid
     conn.close()

@@ -38,11 +38,23 @@ if uploaded:
 
     st.write(f"Uploaded: **{uploaded.name}** ({os.path.getsize(tmp_path)//1024} KB)")
 
+    model_choice = st.selectbox(
+        "Select Model", 
+        ["YOLOv8n (Fast)", "YOLOv8s (Balanced)", "YOLOv8m (Accurate, Slower)"], 
+        index=1
+    )
+
     if st.button("Run Detection"):
         clear_db()   # fresh run -- clear previous results
         reset_state()
 
-        model        = load_model()
+        model_map = {
+            "YOLOv8n (Fast)": "yolov8n.pt",
+            "YOLOv8s (Balanced)": "yolov8s.pt",
+            "YOLOv8m (Accurate, Slower)": "yolov8m.pt"
+        }
+        model_file   = model_map[model_choice]
+        model        = load_model(model_file)
         progress_bar = st.progress(0)
         status_text  = st.empty()
 
@@ -112,6 +124,7 @@ if uploaded:
 
         progress_bar.progress(100)
         status_text.text(f"Done! {violation_count} violations detected.")
+        st.success(f"Processing complete! Model used: {model_choice}")
 
         # Show violations table
         st.subheader("Violations Found")
