@@ -10,7 +10,7 @@ Call check_violations(frame_data) each frame; it returns a list of violation dic
 
 DEBUG MODE
 ----------
-Set DEBUG_TRIPLE_RIDING = True to print per-frame association diagnostics for the
+Set DEBUG_TRIPLE_RIDING = False to print per-frame association diagnostics for the
 triple-riding rule.  This tells you whether missed violations are caused by:
   (a) YOLO failing to detect all 3 persons (detection problem), or
   (b) persons being detected but not associated with the motorcycle (logic problem).
@@ -48,7 +48,7 @@ RESTRICTED_ZONES = []
 WRONG_WAY_HISTORY_FRAMES = 15
 WRONG_WAY_SIZE_GROWTH_THRESHOLD = 1.4
 MIN_REVIEW_TRACKING_FRAMES = 3
-DEBUG_WRONG_WAY = True   # <-- set True to test wrong-way detection
+DEBUG_WRONG_WAY = False   # <-- set True to test wrong-way detection
 
 # ---------------------------------------------------------------------------
 # Debug flag -- set True to diagnose missed triple-riding detections

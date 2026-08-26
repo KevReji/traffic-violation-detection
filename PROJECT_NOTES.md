@@ -1,3 +1,31 @@
+# CURRENT STATE (As of 2026-08-26)
+
+## Fully Working & Tested
+- detection.py: YOLOv8 inference with model selector (YOLOv8n / s / m), frame skipping, and ByteTrack tracking.
+- iolations.py: Helmet (placeholder), triple_riding, illegal_parking, and wrong_way driving rules logic.
+- database.py: SQLite persistence including new generic review/confidence metadata fields (
+eview_needed, 
+eview_reason).
+- confidence.py: Reusable two-tier confidence engine separating strict auto-confirmed violations from flagged edge cases.
+- npr.py: Number plate OCR cropping from bounding boxes (running optimally on unannotated padded frames).
+- 
+eport.py: Automated CSV and PDF (ReportLab) report generation.
+- pp.py: Streamlit frontend with UI model selection, video upload, and end-to-end processing pipeline.
+
+## Known Limitations
+- **Helmet Model is Placeholder:** detect_helmet_violation() currently returns False by default. Requires a custom fine-tuned model to be plugged in.
+- **Wrong-Way Camera Dependency:** The bounding box area growth heuristic produces false positives on fisheye/wide-angle CCTV cameras due to severe lens distortion affecting apparent size. It works reliably on straight, undistorted views (e.g. forward-facing dashcams).
+- **ANPR Best-Effort OCR:** EasyOCR plate reading is best-effort. It often returns no results on blurry, angled, or very small plates (this is expected limitation, not a bug).
+- **Parking Zones Config:** PARKING_ZONE in iolations.py contains hardcoded pixel coordinates. To meaningfully test illegal_parking, this must be updated to match the specific geometry/perspective of the target video.
+
+## Next Steps
+1. **Helmet Dataset & Fine-Tuning:** Source a dataset, fine-tune a YOLO model for helmet detection, and wire it into the detect_helmet_violation() placeholder.
+2. **Review Queue UI (Stage 3):** Create a dedicated section in pp.py showing violations flagged as "Manual Review Needed" (segregated from confirmed violations), and update 
+eport.py PDF/CSV formatting to explicitly indicate 
+eview_needed items.
+
+---
+
 ﻿# PROJECT NOTES — AI Traffic Violation Detection System
 
 > **READ THIS FIRST at the start of every session.**
