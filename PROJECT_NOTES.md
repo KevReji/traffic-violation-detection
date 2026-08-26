@@ -7,10 +7,10 @@
 eview_needed, 
 eview_reason).
 - confidence.py: Reusable two-tier confidence engine separating strict auto-confirmed violations from flagged edge cases.
-- npr.py: Number plate OCR cropping from bounding boxes (running optimally on unannotated padded frames).
+-  npr.py: Number plate OCR cropping from bounding boxes (running optimally on unannotated padded frames).
 - 
 eport.py: Automated CSV and PDF (ReportLab) report generation.
-- pp.py: Streamlit frontend with UI model selection, video upload, and end-to-end processing pipeline.
+- `app.py`: Streamlit **wide-layout dashboard** — sidebar controls (model selector, wrong-way toggle defaulting OFF, upload), live annotated video preview during processing, tabbed results view (Database & Reports / Confirmed Evidence / Review Queue), persistent results across reruns (state bug fixed so download buttons don't wipe the screen).
 
 ## Known Limitations
 - **Helmet Model is Placeholder:** detect_helmet_violation() currently returns False by default. Requires a custom fine-tuned model to be plugged in.
