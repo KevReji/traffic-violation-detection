@@ -1,7 +1,6 @@
 /* ==========================================================================
    style.css — Traffic Violation Detection Dashboard
    Dark-mode command-center aesthetic with cyan/magenta neon accents.
-   Injected at runtime via st.markdown(<style>…</style>, unsafe_allow_html=True).
 
    Selector strategy:
      - Use data-testid attributes (Streamlit's stable testing API) for

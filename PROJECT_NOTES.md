@@ -1,30 +1,71 @@
-# CURRENT STATE (As of 2026-08-26)
+# CURRENT STATE (As of 2026-08-27)
+
+> **READ THIS FIRST at the start of every new session.**
+
+---
 
 ## Fully Working & Tested
-- detection.py: YOLOv8 inference with model selector (YOLOv8n / s / m), frame skipping, and ByteTrack tracking.
-- iolations.py: Helmet (placeholder), triple_riding, illegal_parking, and wrong_way driving rules logic.
-- database.py: SQLite persistence including new generic review/confidence metadata fields (
-eview_needed, 
-eview_reason).
-- confidence.py: Reusable two-tier confidence engine separating strict auto-confirmed violations from flagged edge cases.
--  npr.py: Number plate OCR cropping from bounding boxes (running optimally on unannotated padded frames).
-- 
-eport.py: Automated CSV and PDF (ReportLab) report generation.
-- `app.py`: Streamlit **wide-layout dashboard** — sidebar controls (model selector, wrong-way toggle defaulting OFF, video upload), live annotated video preview inside a styled `.cctv-feed` wrapper, and a 3-tab results panel (Database & Reports / Confirmed Evidence / Review Queue). Results section lives outside the `run_btn` guard so download-button clicks no longer wipe the screen.
-- `style.css` *(new)*: All visual styling is isolated in this external CSS file and injected at runtime via `st.markdown`. Targets Streamlit's stable `data-testid` selectors. Dark-mode command-center theme with neon cyan/magenta accents, styled metric cards, `.badge-confirmed` (green pill) and `.badge-review` (amber pill) classes, blinking LIVE indicator on the CCTV feed wrapper, and button/progress-bar overrides.
 
+| Module | Status | Notes |
+|--------|--------|-------|
+| `detection.py` | ✅ Working | YOLOv8n/s/m selectable, ByteTrack persistent tracking, frame-skip (default 3), two-tier confidence (`CONF_THRESHOLD=0.4`, `REVIEW_CONF_THRESHOLD=0.15`), yields both `original_frame` (clean) and `annotated_frame` |
+| `violations.py` | ✅ Working | triple_riding, illegal_parking, wrong_way rules + helmet PLACEHOLDER. Cooldown deduplication, two-path firing (strict→confirmed / borderline→review_needed), enable_wrong_way flag fully functional (not cosmetic — verified) |
+| `confidence.py` | ✅ Working | Reusable `evaluate_confidence()` wired into all 4 violation types |
+| `database.py` | ✅ Working | SQLite with `review_needed` + `review_reason` columns; safe migration via `ALTER TABLE` |
+| `anpr.py` | ✅ Working (best-effort) | Plate crop from within vehicle bbox (bottom 35%, centre 60%), EasyOCR, fed clean unannotated frames with 20% padding |
+| `report.py` | ✅ Working | PDF (ReportLab) + CSV report generation |
+| `app.py` | ✅ Working | Wide-layout Streamlit dashboard (see UI section below) |
+| `style.css` | ✅ Working | Isolated dark-mode CSS; injected at runtime |
+
+## Recent UI / Architecture Work
+
+- **Wide-layout dashboard**: `st.set_page_config(layout="wide")`, all controls moved to `st.sidebar` (model selector, wrong-way toggle, video uploader).
+- **Isolated styling**: All CSS moved to `style.css` and injected via `st.markdown`. Backend Python contains zero styling code. Dark-mode command-center theme with neon cyan/magenta accents, styled metric cards, badge pill classes, animated blinking LIVE indicator.
+- **Live CCTV preview**: During processing, every inferred frame is converted BGR→RGB and pushed to an `st.empty()` placeholder wrapped in a `.cctv-feed` div (styled border + LIVE badge). Cleared after processing ends.
+- **Persistent results / state-bug fix**: The results section (metrics, tabs, downloads, evidence) lives **outside** the `if run_btn:` block and queries the DB on every Streamlit rerun. Clicking a download button no longer wipes the screen.
+- **3-tab results panel**: "📋 Database & Reports", "🖼️ Confirmed Evidence" (green badges, 4-column grid), "🔍 Review Queue" (amber badges, review_reason shown per image).
+- **Evidence crops**: 20% padded, taken from the clean `original_frame` — no YOLO label text burned in. ANPR also uses the clean frame.
 
 ## Known Limitations
-- **Helmet Model is Placeholder:** detect_helmet_violation() currently returns False by default. Requires a custom fine-tuned model to be plugged in.
-- **Wrong-Way Camera Dependency:** The bounding box area growth heuristic produces false positives on fisheye/wide-angle CCTV cameras due to severe lens distortion affecting apparent size. It works reliably on straight, undistorted views (e.g. forward-facing dashcams).
-- **ANPR Best-Effort OCR:** EasyOCR plate reading is best-effort. It often returns no results on blurry, angled, or very small plates (this is expected limitation, not a bug).
-- **Parking Zones Config:** PARKING_ZONE in iolations.py contains hardcoded pixel coordinates. To meaningfully test illegal_parking, this must be updated to match the specific geometry/perspective of the target video.
 
-## Next Steps
-1. **Helmet Dataset & Fine-Tuning:** Source a dataset, fine-tune a YOLO model for helmet detection, and wire it into the detect_helmet_violation() placeholder.
-2. **Review Queue UI (Stage 3):** Create a dedicated section in pp.py showing violations flagged as "Manual Review Needed" (segregated from confirmed violations), and update 
-eport.py PDF/CSV formatting to explicitly indicate 
-eview_needed items.
+### ⚠️ CRITICAL — Helmet detection is a PLACEHOLDER
+`detect_helmet_violation()` in `violations.py` always returns `False`. A fine-tuned model (`best.pt`) was trained in Google Colab separately but has **not yet been downloaded or wired into the repo**. **This is the single highest-priority next task.**
+
+### Wrong-Way Detection — Three Documented Failure Modes
+1. **Fisheye / wide-angle lens distortion** — barrel distortion causes bounding boxes to appear to grow even for stationary or receding vehicles. Toggle is OFF by default in the UI for this reason.
+2. **Small / unstable tracking on distant objects** — ByteTrack drops tracks after 1–3 frames on small CCTV detections; the 15-frame history window is never filled. The review-bypass path (MIN_REVIEW_TRACKING_FRAMES=3) partially mitigates this.
+3. **Dense traffic + moving camera (dashcam)** — nearly all nearby vehicles appear to "approach" simultaneously, producing many simultaneous flags. Best suited to sparse, single-lane scenarios.
+
+> **Toggle verification (confirmed functional, not cosmetic):** When `enable_wrong_way=False`, the entire `if enable_wrong_way:` block in `check_violations()` is skipped — `_track_history` is **never written to**. Tested programmatically: 5 frames with enabled=True → 5 history entries; same 5 frames with enabled=False → 0 history entries. ✅
+
+### ANPR
+Best-effort OCR. Frequently returns no result on blurry, angled, or very small plates. This is expected behaviour, not a bug.
+
+### Illegal Parking Zones
+`RESTRICTED_ZONES = []` by default. Must be set to real pixel coordinates for the specific video/camera angle before `illegal_parking` fires meaningfully.
+
+---
+
+## IMMEDIATE NEXT TASK
+
+**Wire in the trained helmet model (`best.pt`):**
+1. Download `best.pt` from Google Colab and place it in the project root.
+2. In `violations.py`, replace the body of `detect_helmet_violation()` with YOLOv8 inference on the cropped rider region.
+3. Test on a video with helmet/no-helmet cases. Adjust confidence threshold as needed.
+4. Update PROJECT_NOTES.md and commit.
+
+---
+
+## Deprioritized / Optional Future Work
+*(Do NOT attempt before helmet integration is complete)*
+- FastAPI + React full rewrite
+- `calibrate_zone.py` polygon-drawing tool for parking zones
+- Plotly analytics charts in the dashboard
+- Dummy data seeding script for demo/testing
+- Per-video RESTRICTED_ZONES UI configurator
+
+---
+
 
 ---
 
