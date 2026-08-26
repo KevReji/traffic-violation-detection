@@ -107,7 +107,7 @@ def run_detection(video_path, model=None, save_output=True, frame_skip=FRAME_SKI
 
             if frame_number % frame_skip == 0:
                 # ── Inference frame: run YOLOv8 ──────────────────────────
-                results    = model(frame, conf=CONF_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
+                results    = model.track(frame, persist=True, tracker="bytetrack.yaml", conf=CONF_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
                 detections = []
 
                 for box_obj in results[0].boxes:
@@ -119,15 +119,18 @@ def run_detection(video_path, model=None, save_output=True, frame_skip=FRAME_SKI
                     conf       = float(box_obj.conf[0])
                     x1, y1, x2, y2 = box_obj.xyxy[0].tolist()
                     box = (int(x1), int(y1), int(x2), int(y2))
+                    track_id   = int(box_obj.id[0]) if box_obj.id is not None else None
 
                     detections.append({
+                        "track_id":   track_id,
                         "class_name": class_name,
                         "confidence": conf,
                         "box":        box,
                     })
 
                     color = CLASS_COLORS.get(class_name, (200, 200, 200))
-                    draw_box(frame, box, f"{class_name} {conf:.2f}", color=color)
+                    label = f"{class_name} [#{track_id}] {conf:.2f}" if track_id else f"{class_name} {conf:.2f}"
+                    draw_box(frame, box, label, color=color)
 
                 # Frame-number + skip-indicator overlay
                 cv2.putText(frame, f"Frame {frame_number}",

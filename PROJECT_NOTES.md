@@ -249,3 +249,15 @@ This tells you IMMEDIATELY whether it is:
 
 **Test result:**
 - Synthetic frame feed confirmed it fires on frame 1, skips frames for the next 5 seconds, and fires exactly once again after the cooldown expires.
+
+---
+
+### FEATURE: Wrong-Way Driving Detection
+**Date:** 2026-08-26
+**Change:** Switched from per-frame detection to persistent tracking and added a wrong-way driving heuristic based on bounding box growth.
+- **Tracking**: `detection.py` now uses `model.track(..., persist=True, tracker="bytetrack.yaml")` to assign consistent `track_id`s to vehicles across frames.
+- **Rule added**: `check_wrong_way()` added to `violations.py` (inline). It maintains a sliding history window (`WRONG_WAY_HISTORY_FRAMES = 15`) of the vehicle's bounding box area.
+- **Heuristic**: If the bounding box area grows by a threshold (`WRONG_WAY_SIZE_GROWTH_THRESHOLD = 1.4x`) over the history window, it is flagged as "wrong_way".
+  - *Note & Limitations*: This is a simplified heuristic using size-growth as a proxy for "approaching the camera". It is suitable for a single forward-facing dashcam or CCTV on a one-way path where vehicles should only be moving *away* from the camera (shrinking box).
+- **Deduplication**: Cooldown applies per `track_id` specifically for this rule, meaning multiple different wrong-way vehicles can each trigger a violation once.
+- **Testing**: Confirmed on `test_videos/dashcam_test.mp4` with debug logs showing track IDs growing (e.g., track_id 44, ratio > 1.42) and successfully logging violations.

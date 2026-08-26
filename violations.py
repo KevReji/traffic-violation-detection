@@ -40,23 +40,34 @@ PERSON_MOTO_IOU_THRESHOLD = 0.10
 # Leave empty [] while testing; set real zone coords from your video later.
 RESTRICTED_ZONES = []
 
+
+# ---------------------------------------------------------------------------
+# Wrong-way driving settings
+# ---------------------------------------------------------------------------
+WRONG_WAY_HISTORY_FRAMES = 15
+WRONG_WAY_SIZE_GROWTH_THRESHOLD = 1.4
+DEBUG_WRONG_WAY = True   # <-- set True to test wrong-way detection
+
 # ---------------------------------------------------------------------------
 # Debug flag -- set True to diagnose missed triple-riding detections
+
 # ---------------------------------------------------------------------------
-DEBUG_TRIPLE_RIDING = True   # <-- flip to True when investigating missed detections
+DEBUG_TRIPLE_RIDING = False   # <-- flip to True when investigating missed detections
 
 # ---------------------------------------------------------------------------
 # Internal state (module-level so it persists across frames)
 # ---------------------------------------------------------------------------
 _parking_state = {}    # {(zone_idx, v_id): first_seen_timestamp_sec}
 _last_logged_time = {} # {violation_type: last_logged_timestamp_sec}
+_track_history = {}    # {track_id: [(frame_number, area), ...]}
 
 
 def reset_state():
     """Call this at the start of each new video to clear parking state."""
-    global _parking_state, _last_logged_time
+    global _parking_state, _last_logged_time, _track_history
     _parking_state = {}
     _last_logged_time = {}
+    _track_history = {}
 
 
 # ---------------------------------------------------------------------------
@@ -88,9 +99,13 @@ def check_violations(frame_data):
 
     violations = []
 
-    def can_log(v_type):
-        last_time = _last_logged_time.get(v_type, -999999.0)
-        return (timestamp_sec - last_time) >= COOLDOWN_SECONDS
+    def can_log(v_type, entity_id=None):
+        key = v_type if entity_id is None else f"{v_type}_{entity_id}"
+        last_time = _last_logged_time.get(key, -999999.0)
+        if (timestamp_sec - last_time) >= COOLDOWN_SECONDS:
+            _last_logged_time[key] = timestamp_sec
+            return True
+        return False
 
     # Separate detections by class for convenience
     persons     = [d for d in detections if d["class_name"] == "person"]
@@ -111,7 +126,6 @@ def check_violations(frame_data):
                         "frame_number":   frame_number,
                         "timestamp_sec":  timestamp_sec,
                     })
-                    _last_logged_time["helmet"] = timestamp_sec
 
     # -- Rule 2: Triple Riding -------------------------------------------
     for moto in motorcycles:
@@ -131,7 +145,6 @@ def check_violations(frame_data):
                     "frame_number":   frame_number,
                     "timestamp_sec":  timestamp_sec,
                 })
-                _last_logged_time["triple_riding"] = timestamp_sec
 
     # ── If debug is on and no motorcycles were detected, still log persons ──
     if DEBUG_TRIPLE_RIDING and not motorcycles and persons:
@@ -162,12 +175,50 @@ def check_violations(frame_data):
                             "frame_number":   frame_number,
                             "timestamp_sec":  timestamp_sec,
                         })
-                        _last_logged_time["illegal_parking"] = timestamp_sec
                     # Reset timer so we don't spam violations every frame
                     _parking_state[key] = timestamp_sec
             else:
                 # Vehicle left the zone -- remove from tracking
                 _parking_state.pop((zone_idx, v_id), None)
+
+    # -- Rule 4: Wrong Way Driving ---------------------------------------
+    for v in vehicles:
+        track_id = v.get("track_id")
+        if track_id is None:
+            continue
+            
+        x1, y1, x2, y2 = v["box"]
+        area = (x2 - x1) * (y2 - y1)
+        
+        history = _track_history.setdefault(track_id, [])
+        history.append((frame_number, area))
+        
+        if len(history) > WRONG_WAY_HISTORY_FRAMES:
+            history.pop(0)
+            
+        if len(history) == WRONG_WAY_HISTORY_FRAMES:
+            oldest_area = history[0][1]
+            current_area = area
+            growth_ratio = current_area / oldest_area if oldest_area > 0 else 0
+            
+            if DEBUG_WRONG_WAY:
+                print(f"[DBG WW] Frame {frame_number:>4} | track_id={track_id} | ratio={growth_ratio:.2f} (old={oldest_area}, new={current_area})")
+                
+            # If the vehicle bounding box has grown by the threshold over the history window,
+            # it indicates the vehicle is approaching the camera. In a forward-facing dashcam 
+            # scenario on a one-way path (or single-direction lane), approaching means wrong way.
+            if growth_ratio >= WRONG_WAY_SIZE_GROWTH_THRESHOLD:
+                if can_log("wrong_way", track_id):
+                    violations.append({
+                        "violation_type": "wrong_way",
+                        "vehicle_type":   v["class_name"],
+                        "confidence":     v["confidence"],
+                        "box":            v["box"],
+                        "frame_number":   frame_number,
+                        "timestamp_sec":  timestamp_sec,
+                    })
+                    if DEBUG_WRONG_WAY:
+                        print(f"         >>> WRONG WAY VIOLATION LOGGED for track_id={track_id}")
 
     return violations
 
