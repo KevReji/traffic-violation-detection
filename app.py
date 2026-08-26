@@ -1,7 +1,10 @@
 """
-app.py -- Streamlit dashboard UI.
+app.py -- Traffic Violation Detection Dashboard (Streamlit).
 
 Run with:  streamlit run app.py
+
+Visual styling is handled entirely by style.css — keep backend logic here,
+presentation concerns there.
 """
 
 import os
@@ -27,7 +30,7 @@ init_db()
 ensure_dirs()
 
 # ---------------------------------------------------------------------------
-# Page config -- must be the very first Streamlit call
+# Page config — MUST be the first Streamlit call in the script
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="Traffic Violation Detection",
@@ -36,169 +39,16 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# Custom CSS -- dark-mode command center theme
+# Inject style.css — load the file and wrap it in a <style> block.
+# Keeping CSS in a separate file means app.py stays clean Python.
 # ---------------------------------------------------------------------------
+_css_path = os.path.join(os.path.dirname(__file__), "style.css")
+with open(_css_path, encoding="utf-8") as _f:
+    st.markdown(f"<style>{_f.read()}</style>", unsafe_allow_html=True)
 
-def apply_custom_css():
-    """
-    Inject custom CSS to style the dashboard as a dark security command center.
-
-    Targets used:
-      • div[data-testid="stMetric"]   — Streamlit's metric card container (stable API)
-      • .badge-confirmed / .badge-review — pill badges for use in st.markdown()
-      • .cctv-feed                     — wrapper div for the live video preview
-    """
-    st.markdown(
-        """
-        <style>
-        /* ── Global app background ─────────────────────────────────────────── */
-        .stApp {
-            background-color: #0E1117;
-        }
-
-        /* ── Sidebar ───────────────────────────────────────────────────────── */
-        section[data-testid="stSidebar"] {
-            background-color: #161B22;
-            border-right: 1px solid #30363D;
-        }
-
-        /* ── Metric cards ──────────────────────────────────────────────────── */
-        div[data-testid="stMetric"] {
-            background-color: #1E222D;
-            border: 1px solid #30363D;
-            border-radius: 10px;
-            padding: 16px 20px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
-        }
-
-        /* Metric label (small text above the number) */
-        div[data-testid="stMetric"] label {
-            color: #8B949E !important;
-            font-size: 0.78rem;
-            font-weight: 600;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-        }
-
-        /* Metric value (the big number) */
-        div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-            color: #E6EDF3 !important;
-            font-size: 2rem;
-            font-weight: 700;
-        }
-
-        /* ── Tab bar ───────────────────────────────────────────────────────── */
-        button[data-baseweb="tab"] {
-            background-color: transparent;
-            color: #8B949E;
-            border-bottom: 2px solid transparent;
-            font-weight: 600;
-        }
-        button[data-baseweb="tab"][aria-selected="true"] {
-            color: #58A6FF;
-            border-bottom: 2px solid #58A6FF;
-        }
-
-        /* ── Violation status badge classes ────────────────────────────────── */
-        /* Usage in app.py:
-               st.markdown('<span class="badge-confirmed">Confirmed</span>',
-                           unsafe_allow_html=True)
-               st.markdown('<span class="badge-review">Needs Review</span>',
-                           unsafe_allow_html=True)
-        */
-        .badge-confirmed {
-            display: inline-block;
-            background-color: #196C2E;
-            color: #3FB950;
-            border: 1px solid #3FB950;
-            border-radius: 20px;
-            padding: 2px 12px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-        .badge-review {
-            display: inline-block;
-            background-color: #5A3B00;
-            color: #F0883E;
-            border: 1px solid #F0883E;
-            border-radius: 20px;
-            padding: 2px 12px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-
-        /* ── CCTV live feed container ──────────────────────────────────────── */
-        /* Usage: wrap live_preview with:
-               st.markdown('<div class="cctv-feed">', unsafe_allow_html=True)
-               live_preview = st.empty()
-               st.markdown('</div>', unsafe_allow_html=True)
-           (see processing block below)
-        */
-        .cctv-feed {
-            border: 2px solid #1F6FEB;
-            border-radius: 8px;
-            padding: 4px;
-            box-shadow: 0 0 12px rgba(31, 111, 235, 0.4);
-            position: relative;
-        }
-        /* "LIVE" indicator in top-left corner of the feed */
-        .cctv-feed::before {
-            content: "⬤  LIVE";
-            position: absolute;
-            top: 8px;
-            left: 12px;
-            color: #F85149;
-            font-size: 0.65rem;
-            font-weight: 800;
-            letter-spacing: 0.1em;
-            z-index: 10;
-            text-shadow: 0 0 6px rgba(248, 81, 73, 0.8);
-            pointer-events: none;
-        }
-
-        /* ── Dataframe table ───────────────────────────────────────────────── */
-        div[data-testid="stDataFrame"] {
-            border: 1px solid #30363D;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        /* ── Download buttons ──────────────────────────────────────────────── */
-        div[data-testid="stDownloadButton"] > button {
-            background-color: #1F6FEB;
-            color: #FFFFFF;
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-        }
-        div[data-testid="stDownloadButton"] > button:hover {
-            background-color: #388BFD;
-        }
-
-        /* ── Primary "Run Detection" button ────────────────────────────────── */
-        div[data-testid="stButton"] > button[kind="primary"] {
-            background-color: #238636;
-            color: #FFFFFF;
-            border: 1px solid #2EA043;
-            border-radius: 6px;
-            font-weight: 700;
-            font-size: 1rem;
-        }
-        div[data-testid="stButton"] > button[kind="primary"]:hover {
-            background-color: #2EA043;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-apply_custom_css()
-
-
+# ---------------------------------------------------------------------------
+# Sidebar — all user-facing controls live here
+# ---------------------------------------------------------------------------
 with st.sidebar:
     st.title("🚦 Traffic Violation\nDetection System")
     st.markdown("---")
@@ -215,25 +65,27 @@ with st.sidebar:
         "YOLO Model",
         ["YOLOv8n (Fast)", "YOLOv8s (Balanced)", "YOLOv8m (Accurate, Slower)"],
         index=1,
-        help="Larger models are more accurate but slower. YOLOv8s is a good default.",
+        help="Larger models are more accurate but slower on CPU.",
     )
 
-    # Default False for CCTV compatibility -- fisheye lenses cause false positives
+    # Default False for CCTV compatibility.
+    # The bounding-box growth heuristic produces false positives on
+    # fisheye / wide-angle lenses due to barrel distortion.
     enable_wrong_way = st.checkbox(
         "Enable Wrong-Way Detection",
         value=False,
         help=(
-            "Uses bounding-box size growth to flag vehicles approaching the camera. "
-            "Works best on straight/undistorted footage (dashcams). "
-            "Leave OFF for fisheye/wide-angle CCTV cameras."
+            "Flags vehicles whose bounding box grows consistently over 15 frames "
+            "(proxy for approaching the camera). Works reliably on dashcams and "
+            "straight CCTV angles. Disable for fisheye / wide-angle cameras."
         ),
     )
 
     st.markdown("---")
-    run_btn = st.button("▶ Run Detection", use_container_width=True, type="primary")
+    run_btn = st.button("▶  Run Detection", use_container_width=True, type="primary")
 
 # ---------------------------------------------------------------------------
-# Main area header
+# Main area — title + file info
 # ---------------------------------------------------------------------------
 st.title("Traffic Violation Detection System")
 
@@ -241,41 +93,40 @@ if not uploaded:
     st.info("👈  Upload a video in the sidebar to get started.")
     st.stop()
 
-# ---------------------------------------------------------------------------
-# Save upload to a temp file (OpenCV needs a real path)
-# ---------------------------------------------------------------------------
-with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-    tmp.write(uploaded.read())
-    tmp_path = tmp.name
+# Save the upload to a temp file so OpenCV can open it by path
+with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as _tmp:
+    _tmp.write(uploaded.read())
+    tmp_path = _tmp.name
 
-file_size_kb = os.path.getsize(tmp_path) // 1024
-st.caption(f"📁 {uploaded.name}  ·  {file_size_kb} KB")
+st.caption(f"📁 **{uploaded.name}**  ·  {os.path.getsize(tmp_path) // 1024} KB")
 
 # ---------------------------------------------------------------------------
-# Processing -- runs only when the button is clicked
+# Processing block — runs only when "Run Detection" is clicked
 # ---------------------------------------------------------------------------
 if run_btn:
-    clear_db()
-    reset_state()
+    clear_db()      # wipe previous run from DB
+    reset_state()   # clear parking / tracking state in violations.py
 
     model_map = {
-        "YOLOv8n (Fast)":          "yolov8n.pt",
-        "YOLOv8s (Balanced)":      "yolov8s.pt",
+        "YOLOv8n (Fast)":             "yolov8n.pt",
+        "YOLOv8s (Balanced)":         "yolov8s.pt",
         "YOLOv8m (Accurate, Slower)": "yolov8m.pt",
     }
-    model_file = model_map[model_choice]
-    model      = load_model(model_file)
+    model = load_model(model_map[model_choice])
 
-    # Get total frame count for progress bar
-    cap   = cv2.VideoCapture(tmp_path)
-    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
-    cap.release()
+    # Total frames needed for progress bar
+    _cap   = cv2.VideoCapture(tmp_path)
+    total  = int(_cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+    _cap.release()
 
-    progress_bar  = st.progress(0, text="Starting…")
-    status_text   = st.empty()
-    # Wrap the live feed in a styled div -- CSS defined in apply_custom_css()
+    progress_bar = st.progress(0, text="Starting…")
+    status_text  = st.empty()
+
+    # Live CCTV-style video preview
+    # The .cctv-feed div is defined in style.css — gives the neon border +
+    # blinking LIVE indicator without touching any Python styling code.
     st.markdown('<div class="cctv-feed">', unsafe_allow_html=True)
-    live_preview  = st.empty()   # updated every processed frame with annotated BGR→RGB frame
+    live_preview = st.empty()
     st.markdown('</div>', unsafe_allow_html=True)
 
     violation_count = 0
@@ -283,24 +134,25 @@ if run_btn:
     for frame_data in run_detection(tmp_path, model=model, save_output=True):
         fn = frame_data["frame_number"]
 
-        # ── Progress bar (every 10 frames to avoid Streamlit overhead) ──────
+        # Update progress bar every 10 frames to keep Streamlit overhead low
         if fn % 10 == 0:
             pct = min(int(fn / total * 100), 100)
             progress_bar.progress(pct, text=f"Processing frame {fn} / {total}")
 
-        # ── Live video preview (convert BGR→RGB for Streamlit) ───────────────
-        annotated_rgb = cv2.cvtColor(frame_data["annotated_frame"], cv2.COLOR_BGR2RGB)
-        live_preview.image(annotated_rgb, caption=f"Frame {fn}", use_container_width=True)
+        # Convert BGR (OpenCV default) → RGB (what Streamlit expects) and push
+        # the annotated frame to the live preview placeholder
+        rgb = cv2.cvtColor(frame_data["annotated_frame"], cv2.COLOR_BGR2RGB)
+        live_preview.image(rgb, use_container_width=True)
 
-        # ── Violation checks ─────────────────────────────────────────────────
+        # Run violation rules on this frame
         violations = check_violations(frame_data, enable_wrong_way=enable_wrong_way)
 
         for v in violations:
-            # Clean padded crop from the original (unannotated) frame
+            # Crop evidence from the ORIGINAL (unannotated) frame with 20% padding
             crop = crop_region(frame_data["original_frame"], v["box"], padding_pct=0.20)
             ts   = datetime.datetime.now().isoformat()
 
-            # Insert row first to get the auto-increment ID for file naming
+            # Insert row first so we get the auto-increment ID for file naming
             vid = insert_violation(
                 timestamp=ts,
                 frame_number=v["frame_number"],
@@ -311,17 +163,17 @@ if run_btn:
                 review_reason=v.get("review_reason", None),
             )
 
-            # Save evidence image
+            # Save padded evidence image
             ev_path = None
             if crop is not None:
                 ev_path = os.path.join(EVIDENCE_DIR, f"ev_{vid:04d}.jpg")
                 save_image(crop, ev_path)
 
-            # ANPR
+            # ANPR — fed the clean original frame (no YOLO text burned in)
             anpr_result = detect_and_read_plate(
                 frame_data["original_frame"], v["box"], vid)
 
-            # Update row with file paths + plate text
+            # Update the DB row with file paths + plate text
             conn = sqlite3.connect("violations.db")
             conn.execute(
                 "UPDATE violations SET evidence_image_path=?, plate_text=?, "
@@ -336,8 +188,9 @@ if run_btn:
 
             violation_count += 1
 
+    # Finalise progress and clear the live preview
     progress_bar.progress(100, text="Done!")
-    live_preview.empty()   # clear the preview once processing finishes
+    live_preview.empty()
     status_text.success(
         f"✅ Processing complete — **{violation_count} violation(s)** detected  "
         f"·  Model: **{model_choice}**"
@@ -345,45 +198,42 @@ if run_btn:
 
 # ---------------------------------------------------------------------------
 # Results section
-# Placed OUTSIDE the run_btn block so it persists across reruns
-# (e.g. clicking a download button doesn't wipe the screen).
+#
+# IMPORTANT — this block lives OUTSIDE the `if run_btn:` guard.
+# Streamlit re-runs the entire script on every interaction (including
+# download-button clicks).  Placing results here means they are re-drawn
+# from the database on every rerun, so clicking a download button does NOT
+# wipe the screen.
 # ---------------------------------------------------------------------------
 rows = get_all_violations()
 
-if not rows:
-    # Only show this placeholder if we've already tried to run
-    if not run_btn:
-        pass   # nothing to show yet -- user hasn't run detection
-    # else: the success message above already explains 0 violations
-else:
-    df_all = pd.DataFrame([dict(r) for r in rows])
-
-    # Split into confirmed vs needs-review early so tabs can use them
+if rows:
+    df_all       = pd.DataFrame([dict(r) for r in rows])
     df_confirmed = df_all[df_all["review_needed"] != 1]
     df_review    = df_all[df_all["review_needed"] == 1]
 
     # ── Top-level metrics ────────────────────────────────────────────────────
     st.markdown("---")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Violations",   len(df_all))
-    m2.metric("Confirmed",          len(df_confirmed))
-    m3.metric("Needs Review",       len(df_review))
-    m4.metric("Violation Types",    df_all["violation_type"].nunique())
-
+    m1.metric("Total Violations", len(df_all))
+    m2.metric("Confirmed",        len(df_confirmed))
+    m3.metric("Needs Review",     len(df_review))
+    m4.metric("Violation Types",  df_all["violation_type"].nunique())
     st.markdown("---")
 
-    # ── Three tabs ───────────────────────────────────────────────────────────
+    # ── Three-tab results panel ──────────────────────────────────────────────
     tab_db, tab_evidence, tab_review = st.tabs([
-        "📋 Database & Reports",
-        "🖼️ Confirmed Evidence",
-        "🔍 Review Queue",
+        "📋  Database & Reports",
+        "🖼️  Confirmed Evidence",
+        "🔍  Review Queue",
     ])
 
-    # ── TAB 1: Database & Reports ────────────────────────────────────────────
+    # ── Tab 1: Database & Reports ────────────────────────────────────────────
     with tab_db:
         st.subheader("All Violations")
         st.dataframe(df_all, use_container_width=True)
 
+        # Generate reports from whatever is in the DB right now
         csv_path, pdf_path = generate_reports()
 
         col1, col2 = st.columns(2)
@@ -391,7 +241,7 @@ else:
             if csv_path and os.path.exists(csv_path):
                 with open(csv_path, "rb") as f:
                     st.download_button(
-                        "⬇️ Download CSV",
+                        "⬇️  Download CSV Report",
                         f,
                         file_name="violations_report.csv",
                         mime="text/csv",
@@ -401,25 +251,27 @@ else:
             if pdf_path and os.path.exists(pdf_path):
                 with open(pdf_path, "rb") as f:
                     st.download_button(
-                        "⬇️ Download PDF",
+                        "⬇️  Download PDF Report",
                         f,
                         file_name="violations_report.pdf",
                         mime="application/pdf",
                         use_container_width=True,
                     )
 
-    # ── TAB 2: Confirmed Evidence ────────────────────────────────────────────
+    # ── Tab 2: Confirmed Evidence ────────────────────────────────────────────
     with tab_evidence:
         if df_confirmed.empty:
-            st.info("No confirmed violations in this run.")
+            st.info("No auto-confirmed violations in this run.")
         else:
-            st.caption(f"{len(df_confirmed)} confirmed violation(s) — review_needed = False")
-            # Show in a responsive grid: 4 images per row
+            st.caption(
+                f"{len(df_confirmed)} confirmed violation(s) — "
+                "review_needed = False"
+            )
             cols_per_row = 4
-            rows_list = df_confirmed.to_dict("records")
-            for i in range(0, len(rows_list), cols_per_row):
+            records      = df_confirmed.to_dict("records")
+            for i in range(0, len(records), cols_per_row):
                 cols = st.columns(cols_per_row)
-                for col, row in zip(cols, rows_list[i : i + cols_per_row]):
+                for col, row in zip(cols, records[i : i + cols_per_row]):
                     ep = row.get("evidence_image_path")
                     with col:
                         if ep and os.path.exists(ep):
@@ -431,33 +283,42 @@ else:
                                 ),
                                 use_container_width=True,
                             )
+                            # Green badge below the image
+                            st.markdown(
+                                '<span class="badge-confirmed">Confirmed</span>',
+                                unsafe_allow_html=True,
+                            )
                         else:
                             st.markdown(
                                 f"**ID {row['id']}** — {row['violation_type']}  \n"
                                 f"_(no image saved)_"
                             )
 
-    # ── TAB 3: Review Queue ──────────────────────────────────────────────────
+    # ── Tab 3: Review Queue ──────────────────────────────────────────────────
     with tab_review:
         if df_review.empty:
-            st.success("✅ No violations flagged for manual review.")
+            st.success("✅  No violations flagged for manual review.")
         else:
             st.warning(
-                f"⚠️ **{len(df_review)} violation(s)** were flagged for manual review. "
-                "These detections had low confidence, small object size, or insufficient "
-                "tracking history — they require a human decision before enforcement action."
+                f"⚠️  **{len(df_review)} violation(s)** require manual review.  "
+                "These were flagged due to low detection confidence, a very small "
+                "object, or insufficient tracking history — human judgement is needed "
+                "before enforcement action."
             )
+            # Concise table showing only the review-relevant columns
             st.dataframe(
-                df_review[["id", "frame_number", "violation_type", "vehicle_type",
-                            "confidence_score", "review_reason", "plate_text"]],
+                df_review[[
+                    "id", "frame_number", "violation_type", "vehicle_type",
+                    "confidence_score", "review_reason", "plate_text",
+                ]],
                 use_container_width=True,
             )
-            st.markdown("#### Review Evidence")
+            st.markdown("#### Evidence")
             cols_per_row = 4
-            rows_list = df_review.to_dict("records")
-            for i in range(0, len(rows_list), cols_per_row):
+            records      = df_review.to_dict("records")
+            for i in range(0, len(records), cols_per_row):
                 cols = st.columns(cols_per_row)
-                for col, row in zip(cols, rows_list[i : i + cols_per_row]):
+                for col, row in zip(cols, records[i : i + cols_per_row]):
                     ep = row.get("evidence_image_path")
                     with col:
                         if ep and os.path.exists(ep):
@@ -469,6 +330,11 @@ else:
                                 ),
                                 use_container_width=True,
                             )
+                            # Amber badge below the image
+                            st.markdown(
+                                '<span class="badge-review">Needs Review</span>',
+                                unsafe_allow_html=True,
+                            )
                         else:
                             st.markdown(
                                 f"**ID {row['id']}** — {row['violation_type']}  \n"
@@ -477,7 +343,7 @@ else:
                             )
 
 # ---------------------------------------------------------------------------
-# Clean up temp file (best-effort; may already be gone on rerun)
+# Clean up temp file (best-effort — may already be gone on a later rerun)
 # ---------------------------------------------------------------------------
 try:
     os.unlink(tmp_path)

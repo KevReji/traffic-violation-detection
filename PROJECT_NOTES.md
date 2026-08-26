@@ -10,7 +10,9 @@ eview_reason).
 -  npr.py: Number plate OCR cropping from bounding boxes (running optimally on unannotated padded frames).
 - 
 eport.py: Automated CSV and PDF (ReportLab) report generation.
-- `app.py`: Streamlit **wide-layout dashboard** — sidebar controls (model selector, wrong-way toggle defaulting OFF, upload), live annotated video preview during processing, tabbed results view (Database & Reports / Confirmed Evidence / Review Queue), persistent results across reruns (state bug fixed so download buttons don't wipe the screen).
+- `app.py`: Streamlit **wide-layout dashboard** — sidebar controls (model selector, wrong-way toggle defaulting OFF, video upload), live annotated video preview inside a styled `.cctv-feed` wrapper, and a 3-tab results panel (Database & Reports / Confirmed Evidence / Review Queue). Results section lives outside the `run_btn` guard so download-button clicks no longer wipe the screen.
+- `style.css` *(new)*: All visual styling is isolated in this external CSS file and injected at runtime via `st.markdown`. Targets Streamlit's stable `data-testid` selectors. Dark-mode command-center theme with neon cyan/magenta accents, styled metric cards, `.badge-confirmed` (green pill) and `.badge-review` (amber pill) classes, blinking LIVE indicator on the CCTV feed wrapper, and button/progress-bar overrides.
+
 
 ## Known Limitations
 - **Helmet Model is Placeholder:** detect_helmet_violation() currently returns False by default. Requires a custom fine-tuned model to be plugged in.

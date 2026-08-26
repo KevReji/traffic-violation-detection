@@ -1,0 +1,285 @@
+/* ==========================================================================
+   style.css — Traffic Violation Detection Dashboard
+   Dark-mode command-center aesthetic with cyan/magenta neon accents.
+   Injected at runtime via st.markdown(<style>…</style>, unsafe_allow_html=True).
+
+   Selector strategy:
+     - Use data-testid attributes (Streamlit's stable testing API) for
+       framework elements.  Never target auto-generated class names like
+       css-abc123 — they change between Streamlit versions.
+     - Custom classes (.badge-*, .cctv-feed) are applied via st.markdown()
+       with unsafe_allow_html=True wherever a badge or feed wrapper is needed.
+   ========================================================================== */
+
+
+/* --------------------------------------------------------------------------
+   1. Global — app shell
+   -------------------------------------------------------------------------- */
+
+/* Main app background */
+.stApp {
+    background-color: #0D1117;
+    color: #C9D1D9;
+    font-family: 'Segoe UI', 'Inter', sans-serif;
+}
+
+/* Scrollbar (Chrome/Edge) */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #161B22; }
+::-webkit-scrollbar-thumb { background: #30363D; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #00FFFF44; }
+
+
+/* --------------------------------------------------------------------------
+   2. Sidebar
+   -------------------------------------------------------------------------- */
+
+section[data-testid="stSidebar"] {
+    background-color: #161B22;
+    border-right: 1px solid #21262D;
+}
+
+/* Sidebar title / markdown text */
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] p {
+    color: #E6EDF3;
+}
+
+/* Sidebar divider rule */
+section[data-testid="stSidebar"] hr {
+    border-color: #21262D;
+}
+
+
+/* --------------------------------------------------------------------------
+   3. Metric cards
+   -------------------------------------------------------------------------- */
+
+div[data-testid="stMetric"] {
+    background-color: #161B22;
+    border: 1px solid #21262D;
+    border-radius: 10px;
+    padding: 18px 22px;
+    box-shadow: 0 0 0 0 transparent,
+                0 2px 10px rgba(0, 0, 0, 0.5),
+                inset 0 0 0 1px rgba(0, 255, 255, 0.06);
+    transition: box-shadow 0.2s ease;
+}
+
+div[data-testid="stMetric"]:hover {
+    box-shadow: 0 0 12px rgba(0, 255, 255, 0.18),
+                0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Label — small uppercase text above the number */
+div[data-testid="stMetric"] label {
+    color: #8B949E !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+}
+
+/* Value — the large number */
+div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+    color: #00FFFF !important;    /* neon cyan accent */
+    font-size: 2.1rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+    line-height: 1.1 !important;
+}
+
+/* Delta (optional up/down indicator) */
+div[data-testid="stMetricDelta"] {
+    color: #3FB950 !important;
+    font-size: 0.78rem !important;
+}
+
+
+/* --------------------------------------------------------------------------
+   4. Tab bar
+   -------------------------------------------------------------------------- */
+
+/* Tab strip background */
+div[data-testid="stTabs"] > div:first-child {
+    border-bottom: 1px solid #21262D;
+}
+
+/* Individual tab buttons */
+button[data-baseweb="tab"] {
+    background-color: transparent !important;
+    color: #8B949E !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+    border-bottom: 2px solid transparent !important;
+    padding-bottom: 10px !important;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+button[data-baseweb="tab"]:hover {
+    color: #C9D1D9 !important;
+}
+
+button[data-baseweb="tab"][aria-selected="true"] {
+    color: #00FFFF !important;          /* neon cyan */
+    border-bottom: 2px solid #00FFFF !important;
+}
+
+
+/* --------------------------------------------------------------------------
+   5. Status badge classes
+   Used in st.markdown('<span class="badge-confirmed">…</span>',
+                        unsafe_allow_html=True)
+   -------------------------------------------------------------------------- */
+
+/* Green pill — auto-confirmed, clean detection */
+.badge-confirmed {
+    display: inline-block;
+    background-color: #0D2818;
+    color: #3FB950;
+    border: 1px solid #2EA043;
+    border-radius: 20px;
+    padding: 3px 14px;
+    font-size: 0.70rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+/* Amber pill — borderline / needs human review */
+.badge-review {
+    display: inline-block;
+    background-color: #271700;
+    color: #F0883E;
+    border: 1px solid #D29922;
+    border-radius: 20px;
+    padding: 3px 14px;
+    font-size: 0.70rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+
+/* --------------------------------------------------------------------------
+   6. CCTV live feed wrapper
+   Usage:
+       st.markdown('<div class="cctv-feed">', unsafe_allow_html=True)
+       live_preview = st.empty()
+       st.markdown('</div>', unsafe_allow_html=True)
+   -------------------------------------------------------------------------- */
+
+.cctv-feed {
+    position: relative;
+    border: 2px solid #00FFFF;
+    border-radius: 8px;
+    padding: 4px;
+    background-color: #000000;
+    box-shadow: 0 0 18px rgba(0, 255, 255, 0.30),
+                0 0 4px  rgba(0, 255, 255, 0.15);
+}
+
+/* "● LIVE" indicator badge — top-right corner, pure CSS, no JS */
+.cctv-feed::before {
+    content: "⬤  LIVE";
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    z-index: 10;
+    color: #FF00FF;             /* magenta accent */
+    font-size: 0.60rem;
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 8px rgba(255, 0, 255, 0.85);
+    pointer-events: none;
+    animation: live-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes live-blink {
+    0%, 100% { opacity: 1.0; }
+    50%       { opacity: 0.3; }
+}
+
+/* Camera-corner decorations — top-left and bottom-right */
+.cctv-feed::after {
+    content: "";
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 16px;
+    height: 16px;
+    border-top: 2px solid #00FFFF;
+    border-left: 2px solid #00FFFF;
+    pointer-events: none;
+}
+
+
+/* --------------------------------------------------------------------------
+   7. Dataframe / table
+   -------------------------------------------------------------------------- */
+
+div[data-testid="stDataFrame"] {
+    border: 1px solid #21262D;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+
+/* --------------------------------------------------------------------------
+   8. Buttons
+   -------------------------------------------------------------------------- */
+
+/* Primary action button ("Run Detection") */
+div[data-testid="stButton"] > button[kind="primary"] {
+    background-color: #0D419D;
+    color: #E6EDF3;
+    border: 1px solid #1F6FEB;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+div[data-testid="stButton"] > button[kind="primary"]:hover {
+    background-color: #1F6FEB;
+    box-shadow: 0 0 12px rgba(31, 111, 235, 0.45);
+}
+
+/* Download buttons */
+div[data-testid="stDownloadButton"] > button {
+    background-color: #161B22;
+    color: #00FFFF;
+    border: 1px solid #00FFFF55;
+    border-radius: 6px;
+    font-weight: 600;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+div[data-testid="stDownloadButton"] > button:hover {
+    background-color: #00FFFF15;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.25);
+}
+
+
+/* --------------------------------------------------------------------------
+   9. Progress bar
+   -------------------------------------------------------------------------- */
+
+div[data-testid="stProgress"] > div > div {
+    background: linear-gradient(90deg, #00FFFF, #FF00FF);
+    border-radius: 4px;
+}
+
+
+/* --------------------------------------------------------------------------
+   10. Alerts / info banners
+   -------------------------------------------------------------------------- */
+
+div[data-testid="stAlert"] {
+    border-radius: 8px;
+}
