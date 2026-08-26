@@ -18,6 +18,7 @@ Turn it off again (False) once the root cause is identified.
 """
 
 from utils import compute_iou, box_inside_zone, get_center
+from confidence import evaluate_confidence
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -96,6 +97,7 @@ def check_violations(frame_data):
     frame_number  = frame_data["frame_number"]
     timestamp_sec = frame_data["timestamp_sec"]
     fps           = frame_data.get("fps", 25.0)
+    frame_area    = frame_data.get("frame_width", 1920) * frame_data.get("frame_height", 1080)
 
     violations = []
 
@@ -209,6 +211,9 @@ def check_violations(frame_data):
             # scenario on a one-way path (or single-direction lane), approaching means wrong way.
             if growth_ratio >= WRONG_WAY_SIZE_GROWTH_THRESHOLD:
                 if can_log("wrong_way", track_id):
+                    bw = v["box"][2] - v["box"][0]
+                    bh = v["box"][3] - v["box"][1]
+                    rn, rr = evaluate_confidence(v["confidence"], bw*bh, frame_area, len(history))
                     violations.append({
                         "violation_type": "wrong_way",
                         "vehicle_type":   v["class_name"],
@@ -216,6 +221,8 @@ def check_violations(frame_data):
                         "box":            v["box"],
                         "frame_number":   frame_number,
                         "timestamp_sec":  timestamp_sec,
+                        "review_needed":  rn,
+                        "review_reason":  rr,
                     })
                     if DEBUG_WRONG_WAY:
                         print(f"         >>> WRONG WAY VIOLATION LOGGED for track_id={track_id}")

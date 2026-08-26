@@ -80,6 +80,8 @@ if uploaded:
                     violation_type=v["violation_type"],
                     vehicle_type=v["vehicle_type"],
                     confidence_score=round(v["confidence"], 4),
+                    review_needed=v.get("review_needed", False),
+                    review_reason=v.get("review_reason", None),
                 )
 
                 # Save evidence image

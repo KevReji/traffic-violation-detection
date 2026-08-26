@@ -147,6 +147,8 @@ def run_detection(video_path, model=None, save_output=True, frame_skip=FRAME_SKI
                     "frame_number":    frame_number,
                     "timestamp_sec":   timestamp_sec,
                     "fps":             fps,
+                    "frame_width":     width,
+                    "frame_height":    height,
                     "detections":      detections,
                     "annotated_frame": frame,
                 }
