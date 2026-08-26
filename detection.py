@@ -14,7 +14,8 @@ from utils import ensure_dirs, draw_box, OUTPUT_DIR
 # Configuration -- change these to tune the pipeline
 # ---------------------------------------------------------------------------
 MODEL_PATH     = "yolov8n.pt"   # YOLOv8 nano; swap to yolov8s/m for accuracy
-CONF_THRESHOLD = 0.4            # ignore detections below this confidence
+CONF_THRESHOLD = 0.4
+REVIEW_CONF_THRESHOLD = 0.15            # ignore detections below this confidence
 IOU_THRESHOLD  = 0.5            # NMS overlap threshold
 
 # FRAME_SKIP: process every Nth frame.
@@ -107,7 +108,7 @@ def run_detection(video_path, model=None, save_output=True, frame_skip=FRAME_SKI
 
             if frame_number % frame_skip == 0:
                 # ── Inference frame: run YOLOv8 ──────────────────────────
-                results    = model.track(frame, persist=True, tracker="bytetrack.yaml", conf=CONF_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
+                results    = model.track(frame, persist=True, tracker="bytetrack.yaml", conf=REVIEW_CONF_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
                 detections = []
 
                 for box_obj in results[0].boxes:
@@ -126,6 +127,7 @@ def run_detection(video_path, model=None, save_output=True, frame_skip=FRAME_SKI
                         "class_name": class_name,
                         "confidence": conf,
                         "box":        box,
+                        "low_confidence_detection": conf < CONF_THRESHOLD,
                     })
 
                     color = CLASS_COLORS.get(class_name, (200, 200, 200))

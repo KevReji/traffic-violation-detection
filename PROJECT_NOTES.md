@@ -277,3 +277,16 @@ eview_needed.
 eview_needed (BOOLEAN DEFAULT 0) and 
 eview_reason (TEXT). It also contains a safe migration script to upgrade existing databases seamlessly.
 - **Status:** Unit tested in isolation. *Not yet wired into specific violation types* (helmet, triple_riding, etc.) -- this acts as the generic engine ready for the next integration step.
+
+---
+
+### FEATURE: Two-Tier Confidence & Review Bypass Logic
+**Date:** 2026-08-26
+**Change:** Updated detection.py and iolations.py to route borderline/weak detections to the review pipeline rather than silently dropping them.
+- **detection.py (Two-Tier Threshold):** Introduced a second threshold REVIEW_CONF_THRESHOLD = 0.15 (down from the strict CONF_THRESHOLD = 0.4). Detections in this borderline window are now kept but tagged with "low_confidence_detection": True.
+- **iolations.py (Bypass Paths):** The rule engine now evaluates two paths for each violation:
+  1. *Strict Path:* The standard rules (e.g. 15 frames tracking, 10s parking, >0.4 confidence). This triggers a standard 
+eview_needed=False (or True if it fails generic evaluations like being too small).
+  2. *Review Path:* If a detection is marked "low_confidence_detection": True, or if tracking history is too short but at least 3 frames (MIN_REVIEW_TRACKING_FRAMES = 3), the violation is explicitly allowed to fire but is **forced** to 
+eview_needed=True with reasons like "low_confidence_detection" or "insufficient_tracking_history".
+- **Result:** Successfully tested on cctv_wrongway_test.mp4. Vehicles that were previously completely lost due to tracking instability now fire and are correctly routed to the database tagged with "insufficient_tracking_history", without polluting the strict automated enforcement data.

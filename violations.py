@@ -47,6 +47,7 @@ RESTRICTED_ZONES = []
 # ---------------------------------------------------------------------------
 WRONG_WAY_HISTORY_FRAMES = 15
 WRONG_WAY_SIZE_GROWTH_THRESHOLD = 1.4
+MIN_REVIEW_TRACKING_FRAMES = 3
 DEBUG_WRONG_WAY = True   # <-- set True to test wrong-way detection
 
 # ---------------------------------------------------------------------------
@@ -198,7 +199,7 @@ def check_violations(frame_data):
         if len(history) > WRONG_WAY_HISTORY_FRAMES:
             history.pop(0)
             
-        if len(history) == WRONG_WAY_HISTORY_FRAMES:
+        if len(history) >= MIN_REVIEW_TRACKING_FRAMES:
             oldest_area = history[0][1]
             current_area = area
             growth_ratio = current_area / oldest_area if oldest_area > 0 else 0
@@ -209,11 +210,18 @@ def check_violations(frame_data):
             # If the vehicle bounding box has grown by the threshold over the history window,
             # it indicates the vehicle is approaching the camera. In a forward-facing dashcam 
             # scenario on a one-way path (or single-direction lane), approaching means wrong way.
-            if growth_ratio >= WRONG_WAY_SIZE_GROWTH_THRESHOLD:
+            is_strict = (growth_ratio >= WRONG_WAY_SIZE_GROWTH_THRESHOLD and len(history) >= WRONG_WAY_HISTORY_FRAMES)
+            is_review = (growth_ratio >= 1.1) and (v.get("low_confidence_detection") or len(history) < WRONG_WAY_HISTORY_FRAMES)
+            
+            if is_strict or is_review:
                 if can_log("wrong_way", track_id):
                     bw = v["box"][2] - v["box"][0]
                     bh = v["box"][3] - v["box"][1]
                     rn, rr = evaluate_confidence(v["confidence"], bw*bh, frame_area, len(history))
+                    if len(history) < WRONG_WAY_HISTORY_FRAMES:
+                        rn, rr = True, "insufficient_tracking_history"
+                    elif v.get("low_confidence_detection"):
+                        rn, rr = True, "low_confidence_detection"
                     violations.append({
                         "violation_type": "wrong_way",
                         "vehicle_type":   v["class_name"],
