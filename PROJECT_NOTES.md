@@ -397,3 +397,16 @@ eview_reason columns are correctly populated in the database.
 - **Padded Cropping:** Updated utils.py crop_region() to accept a padding_pct argument (defaulting to 0.0 but set to 0.20 when called). It expands the bounding box by 20% on all sides before cropping, clamping safely to the video bounds.
 - **App Update:** Updated pp.py to pass rame_data["original_frame"] to both the evidence image crop (with padding_pct=0.20) and the detect_and_read_plate ANPR call.
 - **Result:** Evidence images are now completely clean (no UI overlays) and provide 20% extra padding for clear context. Number plate OCR is no longer fed YOLO text labels.
+
+---
+
+### MILESTONE 6: Helmet Detection v2 & Image Uploads
+**Date:** 2026-08-27
+**Status:** COMPLETE
+**Summary:**
+- **Model Upgraded:** Retrained helmet model on motorcycle-specific dataset (helmet-and-no-helmet-rider-detection v6), producing helmet_yolov8s_v2_motorcycle.pt. Validation mAP50: With Helmet 0.896, Without Helmet 0.754 (a clear improvement over v1's 0.649).
+- **Two-Tier Confidence:** Fixed bug where a flat HELMET_CONF_THRESHOLD bypassed the review queue. Wired detect_helmet_violation() into the shared two-tier logic (>= 0.4 confirmed, 0.15-0.4 review, < 0.15 discarded).
+- **Per-Rider Cooldown:** Fixed bug where the global "helmet" cooldown in can_log() blocked multiple riders in the same frame from being flagged. Fixed by passing a per-rider entity_id (track_id or bounding box).
+- **Class Filtering:** Validated the new "licence" class from the v2 model is explicitly ignored and safely drops out before hitting ANPR.
+- **Image Uploads & Compression Observation:** Added single image upload support (jpg/png) to pp.py, cleanly reusing the per-frame pipeline (as frame 0). Diagnostic finding: Video compression measurably degrades helmet detection confidence (e.g. 0.72 on a clean image drops to 0.20-0.36 on compressed video of the same rider). This validates the need for the review queue.
+- **Person Detection Bottleneck:** Helmet coverage is bound by upstream person-detection recall. Switching from YOLOv8n to YOLOv8m (vehicle model) doubled detected violations on the same image. Strongly recommended to default to YOLOv8s/m over YOLOv8n for vehicle detection.

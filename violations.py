@@ -19,6 +19,7 @@ DEBUG_WRONG_WAY     -- prints per-frame bounding-box growth ratios.
 
 from utils import compute_iou, box_inside_zone, get_center
 from confidence import evaluate_confidence
+from detection import CONF_THRESHOLD, REVIEW_CONF_THRESHOLD
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -55,7 +56,7 @@ DEBUG_WRONG_WAY = False   # <-- set True to test wrong-way detection
 # ---------------------------------------------------------------------------
 # Minimum confidence from the helmet model for a "no helmet" prediction to fire.
 # Raise if you're getting too many false positives; lower if missing real violations.
-HELMET_CONF_THRESHOLD = 0.50
+
 
 # Set True to print per-rider crop geometry and model output while debugging.
 DEBUG_HELMET = False
@@ -138,19 +139,24 @@ def check_violations(frame_data, helmet_model=None, enable_wrong_way=True):
         for moto in motorcycles:
             riders = _find_associated_persons(moto["box"], persons)
             for rider in riders:
-                if detect_helmet_violation(
+                helmet_result = detect_helmet_violation(
                     rider, moto,
                     frame=frame_data.get("original_frame"),
                     helmet_model=helmet_model,
-                ):
-                    if can_log("helmet"):
+                    frame_number=frame_number
+                )
+                if helmet_result and helmet_result.get("no_helmet"):
+                    rider_entity_id = rider.get("track_id") or str(rider["box"])
+                    if can_log("helmet", entity_id=rider_entity_id):
                         violations.append({
                             "violation_type": "helmet",
                             "vehicle_type":   "motorcycle",
-                            "confidence":     moto["confidence"],
+                            "confidence":     helmet_result["confidence"],
                             "box":            rider["box"],   # crop the RIDER, not the moto
                             "frame_number":   frame_number,
                             "timestamp_sec":  timestamp_sec,
+                            "review_needed":  helmet_result.get("review_needed", False),
+                            "review_reason":  helmet_result.get("review_reason", None)
                         })
 
 
@@ -269,7 +275,7 @@ def check_violations(frame_data, helmet_model=None, enable_wrong_way=True):
 # Helmet violation detector — uses the fine-tuned YOLO model
 # ---------------------------------------------------------------------------
 
-def detect_helmet_violation(rider_det, moto_det, frame=None, helmet_model=None):
+def detect_helmet_violation(rider_det, moto_det, frame=None, helmet_model=None, frame_number=None):
     """
     Run the fine-tuned helmet model on the rider's bounding-box crop.
 
@@ -296,10 +302,19 @@ def detect_helmet_violation(rider_det, moto_det, frame=None, helmet_model=None):
     if x2 <= x1 or y2 <= y1:
         return False   # degenerate box
 
-    rider_crop = frame[y1:y2, x1:x2]
+    # Crop only the top 25% (head/shoulder region)
+    head_y2 = y1 + int((y2 - y1) * 0.25)
+    rider_crop = frame[y1:head_y2, x1:x2]
+
+    if DEBUG_HELMET:
+        import os
+        import cv2
+        os.makedirs("debug_crops", exist_ok=True)
+        debug_path = os.path.join("debug_crops", f"frame{frame_number}_rider{x1}_{y1}.jpg")
+        cv2.imwrite(debug_path, rider_crop)
 
     # Run the helmet model (verbose=False keeps the console quiet)
-    results = helmet_model(rider_crop, verbose=False)
+    results = helmet_model(rider_crop, verbose=False, conf=REVIEW_CONF_THRESHOLD)
 
     no_helmet_detected = False
     for result in results:
@@ -310,27 +325,28 @@ def detect_helmet_violation(rider_det, moto_det, frame=None, helmet_model=None):
             # We look up the name dynamically so it works regardless of class ordering.
             cls_name = helmet_model.names.get(cls_id, "").lower()
 
+            # Ignore the "licence" class from the v2 model
+            if "licence" in cls_name:
+                continue
+
             if DEBUG_HELMET:
                 print(
                     f"[DBG HELMET] rider_box={rider_det['box']}  "
                     f"cls={cls_name}  conf={conf:.3f}  "
-                    f"threshold={HELMET_CONF_THRESHOLD}"
+                    f"thresholds={REVIEW_CONF_THRESHOLD}/{CONF_THRESHOLD}"
                 )
 
-            # Match class names used by common fine-tuned helmet datasets:
-            #   "Without Helmet", "without_helmet", "no_helmet", "no helmet"
-            # The current models use: {0: 'With Helmet', 1: 'Without Helmet'}
             is_no_helmet = (
                 ("without" in cls_name and "helmet" in cls_name)
                 or ("no" in cls_name and "helmet" in cls_name)
             )
-            if is_no_helmet and conf >= HELMET_CONF_THRESHOLD:
-                no_helmet_detected = True
-                break
-        if no_helmet_detected:
-            break
+            if is_no_helmet:
+                if conf >= CONF_THRESHOLD:
+                    return {"no_helmet": True, "review_needed": False, "review_reason": None, "confidence": conf}
+                elif REVIEW_CONF_THRESHOLD <= conf < CONF_THRESHOLD:
+                    return {"no_helmet": True, "review_needed": True, "review_reason": "low_confidence_detection", "confidence": conf}
 
-    return no_helmet_detected
+    return False
 
 
 

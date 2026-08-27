@@ -16,7 +16,7 @@ import cv2
 import streamlit as st
 import pandas as pd
 
-from detection import load_model, run_detection
+from detection import load_model, run_detection, process_single_frame
 from violations import check_violations, reset_state
 from anpr import detect_and_read_plate
 from database import init_db, insert_violation, get_all_violations, clear_db
@@ -54,9 +54,9 @@ with st.sidebar:
     st.markdown("---")
 
     uploaded = st.file_uploader(
-        "Upload a traffic video",
-        type=["mp4", "avi", "mov"],
-        help="Supported formats: MP4, AVI, MOV",
+        "Upload a traffic video or image",
+        type=["mp4", "avi", "mov", "mkv", "jpg", "jpeg", "png"],
+        help="Supported formats: MP4, AVI, MOV, MKV, JPG, JPEG, PNG",
     )
 
     st.markdown("### ⚙️ Detection Settings")
@@ -70,13 +70,9 @@ with st.sidebar:
 
     helmet_model_choice = st.selectbox(
         "Helmet Detection Model",
-        ["YOLOv8n (Fast)", "YOLOv8s (Balanced)"],
-        index=1,   # default to YOLOv8s — higher mAP50 (0.755 vs 0.746)
-        help=(
-            "YOLOv8s has slightly higher accuracy (mAP50 0.755, Without-Helmet 0.649) "
-            "vs YOLOv8n (mAP50 0.746, Without-Helmet 0.622). "
-            "Use YOLOv8n if speed matters more than accuracy."
-        ),
+        ["YOLOv8s v2 (Motorcycle)"],
+        index=0,
+        help="v2 model trained on real motorcycle/street imagery.",
     )
 
     # Default False for CCTV compatibility.
@@ -128,18 +124,31 @@ if run_btn:
 
     # Helmet detection model — separate model, separate .pt file, loaded independently
     helmet_model_map = {
-        "YOLOv8n (Fast)":    os.path.join("models", "helmet_yolov8n_v1_map74.pt.pt"),
-        "YOLOv8s (Balanced)": os.path.join("models", "helmet_yolov8s_v1_map74.pt"),
+        "YOLOv8s v2 (Motorcycle)": os.path.join("models", "helmet_yolov8s_v2_motorcycle.pt"),
     }
     helmet_pt = helmet_model_map[helmet_model_choice]
     helmet_model = load_model(helmet_pt)
 
-    # Total frames needed for progress bar
-    _cap   = cv2.VideoCapture(tmp_path)
-    total  = int(_cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
-    _cap.release()
+    is_image = uploaded.name.lower().endswith(('.jpg', '.jpeg', '.png'))
+    actual_enable_wrong_way = enable_wrong_way and not is_image
 
-    progress_bar = st.progress(0, text="Starting…")
+    # Total frames needed for progress bar
+    if is_image:
+        total = 1
+    else:
+        _cap   = cv2.VideoCapture(tmp_path)
+        total  = int(_cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+        _cap.release()
+
+    def generate_frames(path, is_img):
+        if is_img:
+            frame = cv2.imread(path)
+            if frame is not None:
+                yield process_single_frame(frame, model, 0, 0.0)
+        else:
+            yield from run_detection(path, model=model, save_output=True)
+
+    progress_bar = st.progress(0, text="Starting...")
     status_text  = st.empty()
 
     # Live CCTV-style video preview
@@ -151,7 +160,7 @@ if run_btn:
 
     violation_count = 0
 
-    for frame_data in run_detection(tmp_path, model=model, save_output=True):
+    for frame_data in generate_frames(tmp_path, is_image):
         fn = frame_data["frame_number"]
 
         # Update progress bar every 10 frames to keep Streamlit overhead low
@@ -168,7 +177,7 @@ if run_btn:
         violations = check_violations(
             frame_data,
             helmet_model=helmet_model,
-            enable_wrong_way=enable_wrong_way,
+            enable_wrong_way=actual_enable_wrong_way,
         )
 
         for v in violations:

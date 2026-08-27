@@ -51,6 +51,50 @@ def load_model(model_path=MODEL_PATH):
     return YOLO(model_path)
 
 
+def process_single_frame(frame, model, frame_number=0, timestamp_sec=0.0, fps=25.0):
+    """Run detection and annotation on a single frame."""
+    results = model.track(frame, persist=True, tracker="bytetrack.yaml", conf=REVIEW_CONF_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
+    detections = []
+    original_frame = frame.copy()
+    height, width = frame.shape[:2]
+
+    for box_obj in results[0].boxes:
+        cls_id = int(box_obj.cls[0])
+        if cls_id not in RELEVANT_CLASSES:
+            continue
+
+        class_name = RELEVANT_CLASSES[cls_id]
+        conf       = float(box_obj.conf[0])
+        x1, y1, x2, y2 = box_obj.xyxy[0].tolist()
+        box = (int(x1), int(y1), int(x2), int(y2))
+        track_id   = int(box_obj.id[0]) if box_obj.id is not None else None
+
+        detections.append({
+            "track_id":   track_id,
+            "class_name": class_name,
+            "confidence": conf,
+            "box":        box,
+            "low_confidence_detection": conf < CONF_THRESHOLD,
+        })
+
+        color = CLASS_COLORS.get(class_name, (200, 200, 200))
+        label = f"{class_name} [#{track_id}] {conf:.2f}" if track_id else f"{class_name} {conf:.2f}"
+        draw_box(frame, box, label, color=color)
+
+    cv2.putText(frame, f"Frame {frame_number}",
+                (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+    return {
+        "frame_number":    frame_number,
+        "timestamp_sec":   timestamp_sec,
+        "fps":             fps,
+        "frame_width":     width,
+        "frame_height":    height,
+        "detections":      detections,
+        "annotated_frame": frame,
+        "original_frame":  original_frame,
+    }
+
 def run_detection(video_path, model=None, save_output=True, frame_skip=FRAME_SKIP):
     """
     Generator: yields one dict per PROCESSED frame with detection results.
@@ -108,54 +152,14 @@ def run_detection(video_path, model=None, save_output=True, frame_skip=FRAME_SKI
 
             if frame_number % frame_skip == 0:
                 # ── Inference frame: run YOLOv8 ──────────────────────────
-                results    = model.track(frame, persist=True, tracker="bytetrack.yaml", conf=REVIEW_CONF_THRESHOLD, iou=IOU_THRESHOLD, verbose=False)
-                detections = []
-
-                original_frame = frame.copy()
-                for box_obj in results[0].boxes:
-                    cls_id = int(box_obj.cls[0])
-                    if cls_id not in RELEVANT_CLASSES:
-                        continue
-
-                    class_name = RELEVANT_CLASSES[cls_id]
-                    conf       = float(box_obj.conf[0])
-                    x1, y1, x2, y2 = box_obj.xyxy[0].tolist()
-                    box = (int(x1), int(y1), int(x2), int(y2))
-                    track_id   = int(box_obj.id[0]) if box_obj.id is not None else None
-
-                    detections.append({
-                        "track_id":   track_id,
-                        "class_name": class_name,
-                        "confidence": conf,
-                        "box":        box,
-                        "low_confidence_detection": conf < CONF_THRESHOLD,
-                    })
-
-                    color = CLASS_COLORS.get(class_name, (200, 200, 200))
-                    label = f"{class_name} [#{track_id}] {conf:.2f}" if track_id else f"{class_name} {conf:.2f}"
-                    draw_box(frame, box, label, color=color)
-
-                # Frame-number + skip-indicator overlay
-                cv2.putText(frame, f"Frame {frame_number}",
-                            (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
-                last_frame      = frame
+                frame_data = process_single_frame(frame, model, frame_number, timestamp_sec, fps)
+                last_frame = frame_data["annotated_frame"]
                 frames_inferred += 1
-
+                
                 if writer:
-                    writer.write(frame)
-
-                # Yield this frame to the violations pipeline
-                yield {
-                    "frame_number":    frame_number,
-                    "timestamp_sec":   timestamp_sec,
-                    "fps":             fps,
-                    "frame_width":     width,
-                    "frame_height":    height,
-                    "detections":      detections,
-                    "annotated_frame": frame,
-                    "original_frame":  original_frame,
-                }
+                    writer.write(last_frame)
+                
+                yield frame_data
 
             else:
                 # ── Skipped frame: write last annotated frame to video ────
