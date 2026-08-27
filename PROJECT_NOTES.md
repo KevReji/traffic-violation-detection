@@ -418,3 +418,45 @@ eview_reason columns are correctly populated in the database.
 **Note:** Known issue: the live frame preview during video processing does not draw helmet detection boxes/labels — it only shows the primary detector's boxes (person, car, motorcycle, etc). This is a DISPLAY-ONLY gap, not a detection bug — helmet violations ARE being correctly detected and logged (confirmed via Confirmed Evidence and Review Queue tabs, and PDF/CSV reports). The helmet model runs on a cropped sub-region of each rider's box, so its output boxes are in crop-local coordinates, not full-frame coordinates — any fix needs to translate crop-local coordinates back to full-frame coordinates before drawing (offset by the rider crop's x1, y1) rather than drawing them as-is.
 
 Next step for this: locate the existing box-drawing loop (grep for cv2.rectangle / cv2.putText in app.py and detection.py) to see the current annotation pattern and coordinate space before writing a fix, rather than guessing at the structure.
+
+Root cause confirmed: draw_box() in utils.py draws directly using whatever coordinates it's given, with no offset logic. detect_helmet_violation() in violations.py runs the helmet model on a cropped sub-image (rider_crop), so any box the helmet model returns is in crop-local coordinates (starting at 0,0), not full-frame coordinates.
+
+Fix plan for next session:
+1. Modify detect_helmet_violation() to also return the helmet model's box 
+   coordinates (box_obj.xyxy or equivalent) inside its result dict, alongside 
+   the existing no_helmet/review_needed/confidence fields.
+2. At the call site (around line 141 in violations.py) or wherever the frame 
+   is annotated, translate the returned crop-local box back to full-frame 
+   coordinates by adding the rider crop's (x1, y1) offset — the same x1, y1 
+   already computed when the crop was created.
+3. Call draw_box() with the translated full-frame coordinates and an 
+   appropriate label (e.g. 'No Helmet' with confidence), using a distinct 
+   color from person/vehicle boxes so it's visually clear on the live feed.
+4. Do not change draw_box() itself — it's a generic utility already used 
+   correctly elsewhere; the fix belongs in how helmet detection calls it, 
+   not in the utility function.
+
+This is a display-only enhancement — helmet violations are already correctly 
+detected and logged; this just makes them visible on the live preview too.
+
+Additional complexity found: annotated_frame (with primary detector boxes 
+already drawn via draw_box) is created inside process_single_frame() in 
+detection.py, BEFORE check_violations()/detect_helmet_violation() runs in 
+violations.py. This means the frame is already finalized with its boxes by 
+the time helmet detection happens — helmet boxes can't simply be added via a 
+draw_box() call from inside violations.py on that same frame object without 
+restructuring the data flow.
+
+Two possible approaches for next session to evaluate:
+A) Pass the frame (or a mutable reference to it) into check_violations()/
+   detect_helmet_violation() so helmet boxes can be drawn onto the SAME frame 
+   object after the primary boxes, before it's returned/written to the output 
+   video. Requires checking whether frame_data['annotated_frame'] is drawn on 
+   before or after check_violations() is called relative to process_single_frame().
+B) Return helmet detections (with translated full-frame coordinates) from 
+   check_violations() back up to wherever process_single_frame() or the main 
+   loop finalizes the frame, and draw them there as a distinct final step, 
+   after both primary and helmet detections are known.
+Option B is likely cleaner and less error-prone than mutating frame state 
+mid-pipeline across files. Check the exact call order between 
+process_single_frame() and check_violations() first before deciding.
