@@ -410,3 +410,11 @@ eview_reason columns are correctly populated in the database.
 - **Class Filtering:** Validated the new "licence" class from the v2 model is explicitly ignored and safely drops out before hitting ANPR.
 - **Image Uploads & Compression Observation:** Added single image upload support (jpg/png) to pp.py, cleanly reusing the per-frame pipeline (as frame 0). Diagnostic finding: Video compression measurably degrades helmet detection confidence (e.g. 0.72 on a clean image drops to 0.20-0.36 on compressed video of the same rider). This validates the need for the review queue.
 - **Person Detection Bottleneck:** Helmet coverage is bound by upstream person-detection recall. Switching from YOLOv8n to YOLOv8m (vehicle model) doubled detected violations on the same image. Strongly recommended to default to YOLOv8s/m over YOLOv8n for vehicle detection.
+
+---
+
+### NEXT SESSION / KNOWN ISSUE
+**Date:** 2026-08-27
+**Note:** Known issue: the live frame preview during video processing does not draw helmet detection boxes/labels — it only shows the primary detector's boxes (person, car, motorcycle, etc). This is a DISPLAY-ONLY gap, not a detection bug — helmet violations ARE being correctly detected and logged (confirmed via Confirmed Evidence and Review Queue tabs, and PDF/CSV reports). The helmet model runs on a cropped sub-region of each rider's box, so its output boxes are in crop-local coordinates, not full-frame coordinates — any fix needs to translate crop-local coordinates back to full-frame coordinates before drawing (offset by the rider crop's x1, y1) rather than drawing them as-is.
+
+Next step for this: locate the existing box-drawing loop (grep for cv2.rectangle / cv2.putText in app.py and detection.py) to see the current annotation pattern and coordinate space before writing a fix, rather than guessing at the structure.

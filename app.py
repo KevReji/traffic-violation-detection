@@ -355,26 +355,45 @@ if rows:
                 for col, row in zip(cols, records[i : i + cols_per_row]):
                     ep = row.get("evidence_image_path")
                     with col:
+                        # Format plate text safely
+                        plate_val = row.get("plate_text")
+                        if not plate_val or str(plate_val).strip() == "" or str(plate_val).lower() == "nan":
+                            plate_display = "Not detected"
+                        else:
+                            plate_display = str(plate_val)
+                            
+                        # Format confidence score safely
+                        conf_val = row.get("confidence_score")
+                        try:
+                            conf_str = f"{float(conf_val):.2f}"
+                        except (ValueError, TypeError):
+                            conf_str = "N/A"
+                            
                         if ep and os.path.exists(ep):
-                            st.image(
-                                ep,
-                                caption=(
-                                    f"ID {row['id']}  ·  {row['violation_type']}\n"
-                                    f"Reason: {row['review_reason'] or 'N/A'}"
-                                ),
-                                use_container_width=True,
-                            )
+                            st.image(ep, use_container_width=True)
+                            
+                            st.markdown(f"""<div style="font-size:0.85em; line-height:1.4; margin-bottom: 5px;">
+<b>{row.get('violation_type')}</b> ({row.get('vehicle_type')})<br>
+Conf: {conf_str}<br>
+Reason: {row.get('review_reason')}<br>
+Frame: {row.get('frame_number')} | {row.get('timestamp')}<br>
+Plate: {plate_display}
+</div>""", unsafe_allow_html=True)
+
                             # Amber badge below the image
                             st.markdown(
                                 '<span class="badge-review">Needs Review</span>',
                                 unsafe_allow_html=True,
                             )
                         else:
-                            st.markdown(
-                                f"**ID {row['id']}** — {row['violation_type']}  \n"
-                                f"Reason: _{row['review_reason'] or 'N/A'}_  \n"
-                                f"_(no image saved)_"
-                            )
+                            st.markdown(f"""<div style="font-size:0.85em; line-height:1.4; margin-bottom: 5px;">
+<b>ID {row.get('id')}</b> - {row.get('violation_type')} ({row.get('vehicle_type')})<br>
+Conf: {conf_str}<br>
+Reason: {row.get('review_reason')}<br>
+Frame: {row.get('frame_number')} | {row.get('timestamp')}<br>
+Plate: {plate_display}<br>
+<i>(no image saved)</i>
+</div>""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Clean up temp file (best-effort — may already be gone on a later rerun)

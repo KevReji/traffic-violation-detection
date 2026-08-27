@@ -14,7 +14,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
                                  Paragraph, Spacer, Image)
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from database import get_all_violations
 
@@ -93,14 +93,52 @@ def _build_pdf(df, pdf_path):
 
     # Columns to display in the PDF detail table
     display_cols = ["id", "timestamp", "frame_number", "violation_type",
-                    "vehicle_type", "confidence_score", "plate_text"]
+                    "vehicle_type", "confidence_score", "plate_text", "review_needed", "review_reason"]
 
-    header  = [c.replace("_", " ").title() for c in display_cols]
-    col_w   = [1*cm, 4*cm, 2*cm, 3*cm, 2.5*cm, 2*cm, 3*cm]   # approximate widths
+    # Wrap headers and data in Paragraphs so they text-wrap instead of overflowing cells
+    hdr_style = ParagraphStyle(
+        'HeaderStyle', 
+        parent=styles['Normal'], 
+        textColor=colors.white, 
+        fontName='Helvetica-Bold', 
+        fontSize=7, 
+        alignment=1 # Center align
+    )
+    cell_style = ParagraphStyle(
+        'CellStyle',
+        parent=styles['Normal'],
+        fontSize=7,
+    )
 
-    detail_data = [header]
+    header_cells = [Paragraph(c.replace("_", " ").title(), hdr_style) for c in display_cols]
+    
+    # Adjusted column widths to better balance long fields and headers (sum=18.0cm)
+    col_w   = [0.8*cm, 2.5*cm, 1.4*cm, 2.2*cm, 1.8*cm, 1.8*cm, 1.8*cm, 1.5*cm, 4.2*cm]
+
+    detail_data = [header_cells]
     for _, row in df.iterrows():
-        detail_data.append([str(row.get(c, "")) for c in display_cols])
+        row_cells = []
+        for c in display_cols:
+            val = row.get(c, "")
+            
+            # Format Yes/No for review_needed
+            if c == "review_needed":
+                if pd.notna(val) and str(val).strip().lower() in ("1", "true", "yes", "1.0"):
+                    val_str = "Yes"
+                else:
+                    val_str = "No"
+            # Format confidence safely
+            elif c == "confidence_score":
+                try:
+                    val_str = f"{float(val):.2f}"
+                except (ValueError, TypeError):
+                    val_str = str(val) if pd.notna(val) else "N/A"
+            else:
+                val_str = str(val) if pd.notna(val) else ""
+                
+            row_cells.append(Paragraph(val_str, cell_style))
+            
+        detail_data.append(row_cells)
 
     detail_table = Table(detail_data, colWidths=col_w, repeatRows=1)
     detail_table.setStyle(TableStyle([
