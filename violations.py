@@ -1,20 +1,20 @@
 """
 violations.py -- Violation detection rules applied per frame.
 
-Three rules:
-  1. Helmet Violation  -- motorcycle + person, helmet check via placeholder
-  2. Triple Riding     -- 3+ persons sharing a single motorcycle bounding box
-  3. Illegal Parking   -- vehicle inside a restricted zone for > PARKING_TIMEOUT seconds
+Rules:
+  1. Helmet Violation  -- motorcycle + person, runs the fine-tuned helmet YOLO model
+                         on each associated rider crop to detect missing helmets.
+  2. Triple Riding     -- 3+ persons sharing a single motorcycle bounding box.
+  3. Illegal Parking   -- vehicle stationary inside a restricted zone > PARKING_TIMEOUT.
+  4. Wrong-Way Driving -- vehicle bounding box growing consistently over N frames.
 
-Call check_violations(frame_data) each frame; it returns a list of violation dicts.
+Call check_violations(frame_data, helmet_model=..., enable_wrong_way=...) each frame.
 
-DEBUG MODE
-----------
-Set DEBUG_TRIPLE_RIDING = False to print per-frame association diagnostics for the
-triple-riding rule.  This tells you whether missed violations are caused by:
-  (a) YOLO failing to detect all 3 persons (detection problem), or
-  (b) persons being detected but not associated with the motorcycle (logic problem).
-Turn it off again (False) once the root cause is identified.
+DEBUG FLAGS
+-----------
+DEBUG_HELMET        -- prints per-rider crop + model output for helmet rule.
+DEBUG_TRIPLE_RIDING -- prints per-frame IoU association details for triple-riding.
+DEBUG_WRONG_WAY     -- prints per-frame bounding-box growth ratios.
 """
 
 from utils import compute_iou, box_inside_zone, get_center
@@ -51,6 +51,16 @@ MIN_REVIEW_TRACKING_FRAMES = 3
 DEBUG_WRONG_WAY = False   # <-- set True to test wrong-way detection
 
 # ---------------------------------------------------------------------------
+# Helmet detection settings
+# ---------------------------------------------------------------------------
+# Minimum confidence from the helmet model for a "no helmet" prediction to fire.
+# Raise if you're getting too many false positives; lower if missing real violations.
+HELMET_CONF_THRESHOLD = 0.50
+
+# Set True to print per-rider crop geometry and model output while debugging.
+DEBUG_HELMET = False
+
+# ---------------------------------------------------------------------------
 # Debug flag -- set True to diagnose missed triple-riding detections
 
 # ---------------------------------------------------------------------------
@@ -76,16 +86,19 @@ def reset_state():
 # Public API
 # ---------------------------------------------------------------------------
 
-def check_violations(frame_data, enable_wrong_way=True):
+def check_violations(frame_data, helmet_model=None, enable_wrong_way=True):
     """
     Analyse one frame's detections and return all violations found.
 
     Parameters
     ----------
-    frame_data : dict  -- the dict yielded by run_detection() in detection.py
-    enable_wrong_way : bool  -- set False to skip wrong-way detection entirely
-                               (saves CPU; recommended for fisheye/wide-angle CCTV
-                               where lens distortion causes false positives)
+    frame_data      : dict -- the dict yielded by run_detection() in detection.py
+    helmet_model    : ultralytics YOLO object or None
+                      The loaded fine-tuned helmet model.  If None, helmet
+                      detection is skipped (no violations will fire for Rule 1).
+    enable_wrong_way: bool -- set False to skip wrong-way detection entirely
+                      (saves CPU; recommended for fisheye/wide-angle CCTV
+                      where lens distortion causes false positives)
 
     Returns
     -------
@@ -119,19 +132,27 @@ def check_violations(frame_data, enable_wrong_way=True):
     vehicles    = [d for d in detections if d["class_name"] in ("car","bus","truck","motorcycle")]
 
     # -- Rule 1: Helmet Violation -----------------------------------------
-    for moto in motorcycles:
-        riders = _find_associated_persons(moto["box"], persons)
-        for rider in riders:
-            if detect_helmet_violation(rider, moto, frame_data.get("annotated_frame")):
-                if can_log("helmet"):
-                    violations.append({
-                        "violation_type": "helmet",
-                        "vehicle_type":   "motorcycle",
-                        "confidence":     moto["confidence"],
-                        "box":            moto["box"],
-                        "frame_number":   frame_number,
-                        "timestamp_sec":  timestamp_sec,
-                    })
+    # Only runs when a helmet model is loaded (helmet_model is not None).
+    # Uses the ORIGINAL (unannotated) frame for clean crops.
+    if helmet_model is not None:
+        for moto in motorcycles:
+            riders = _find_associated_persons(moto["box"], persons)
+            for rider in riders:
+                if detect_helmet_violation(
+                    rider, moto,
+                    frame=frame_data.get("original_frame"),
+                    helmet_model=helmet_model,
+                ):
+                    if can_log("helmet"):
+                        violations.append({
+                            "violation_type": "helmet",
+                            "vehicle_type":   "motorcycle",
+                            "confidence":     moto["confidence"],
+                            "box":            rider["box"],   # crop the RIDER, not the moto
+                            "frame_number":   frame_number,
+                            "timestamp_sec":  timestamp_sec,
+                        })
+
 
     # -- Rule 2: Triple Riding -------------------------------------------
     for moto in motorcycles:
@@ -245,24 +266,72 @@ def check_violations(frame_data, enable_wrong_way=True):
 
 
 # ---------------------------------------------------------------------------
-# Placeholder -- REPLACE with your own trained model later
+# Helmet violation detector — uses the fine-tuned YOLO model
 # ---------------------------------------------------------------------------
 
-def detect_helmet_violation(rider_det, moto_det, frame=None):
+def detect_helmet_violation(rider_det, moto_det, frame=None, helmet_model=None):
     """
-    PLACEHOLDER: always returns False (no violation detected).
+    Run the fine-tuned helmet model on the rider's bounding-box crop.
 
-    Replace the body of this function with your own fine-tuned model
-    inference code.  The function must return True if the rider is NOT
-    wearing a helmet, False otherwise.
+    Returns True if the rider is NOT wearing a helmet, False otherwise.
+    Returns False immediately (safe no-op) if frame or helmet_model is None.
 
     Parameters
     ----------
-    rider_det : dict  -- person detection {class_name, confidence, box}
-    moto_det  : dict  -- motorcycle detection {class_name, confidence, box}
-    frame     : np.ndarray or None  -- the current BGR frame (for cropping)
+    rider_det    : dict  -- person detection {class_name, confidence, box}
+    moto_det     : dict  -- motorcycle detection {class_name, confidence, box}
+    frame        : np.ndarray or None  -- the ORIGINAL (unannotated) BGR frame
+    helmet_model : ultralytics YOLO or None  -- the loaded fine-tuned helmet model
     """
-    return False   # <-- your model goes here
+    if frame is None or helmet_model is None:
+        return False
+
+    x1, y1, x2, y2 = [int(c) for c in rider_det["box"]]
+    h, w = frame.shape[:2]
+
+    # Clamp to frame bounds
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w, x2), min(h, y2)
+
+    if x2 <= x1 or y2 <= y1:
+        return False   # degenerate box
+
+    rider_crop = frame[y1:y2, x1:x2]
+
+    # Run the helmet model (verbose=False keeps the console quiet)
+    results = helmet_model(rider_crop, verbose=False)
+
+    no_helmet_detected = False
+    for result in results:
+        for box_obj in result.boxes:
+            cls_id = int(box_obj.cls[0])
+            conf   = float(box_obj.conf[0])
+            # The fine-tuned model's class names tell us which index is "no_helmet".
+            # We look up the name dynamically so it works regardless of class ordering.
+            cls_name = helmet_model.names.get(cls_id, "").lower()
+
+            if DEBUG_HELMET:
+                print(
+                    f"[DBG HELMET] rider_box={rider_det['box']}  "
+                    f"cls={cls_name}  conf={conf:.3f}  "
+                    f"threshold={HELMET_CONF_THRESHOLD}"
+                )
+
+            # Match class names used by common fine-tuned helmet datasets:
+            #   "Without Helmet", "without_helmet", "no_helmet", "no helmet"
+            # The current models use: {0: 'With Helmet', 1: 'Without Helmet'}
+            is_no_helmet = (
+                ("without" in cls_name and "helmet" in cls_name)
+                or ("no" in cls_name and "helmet" in cls_name)
+            )
+            if is_no_helmet and conf >= HELMET_CONF_THRESHOLD:
+                no_helmet_detected = True
+                break
+        if no_helmet_detected:
+            break
+
+    return no_helmet_detected
+
 
 
 # ---------------------------------------------------------------------------

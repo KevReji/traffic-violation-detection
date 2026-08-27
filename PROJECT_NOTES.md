@@ -9,13 +9,15 @@
 | Module | Status | Notes |
 |--------|--------|-------|
 | `detection.py` | ✅ Working | YOLOv8n/s/m selectable, ByteTrack persistent tracking, frame-skip (default 3), two-tier confidence (`CONF_THRESHOLD=0.4`, `REVIEW_CONF_THRESHOLD=0.15`), yields both `original_frame` (clean) and `annotated_frame` |
-| `violations.py` | ✅ Working | triple_riding, illegal_parking, wrong_way rules + helmet PLACEHOLDER. Cooldown deduplication, two-path firing (strict→confirmed / borderline→review_needed), enable_wrong_way flag fully functional (not cosmetic — verified) |
+| `violations.py` | ✅ Working | triple_riding, illegal_parking, wrong_way + **helmet detection (LIVE — not placeholder)**. `detect_helmet_violation()` crops each rider and runs the selected fine-tuned model. Class matching handles `With Helmet` / `Without Helmet` labels. `HELMET_CONF_THRESHOLD=0.50`, `DEBUG_HELMET=False`. |
 | `confidence.py` | ✅ Working | Reusable `evaluate_confidence()` wired into all 4 violation types |
 | `database.py` | ✅ Working | SQLite with `review_needed` + `review_reason` columns; safe migration via `ALTER TABLE` |
 | `anpr.py` | ✅ Working (best-effort) | Plate crop from within vehicle bbox (bottom 35%, centre 60%), EasyOCR, fed clean unannotated frames with 20% padding |
 | `report.py` | ✅ Working | PDF (ReportLab) + CSV report generation |
-| `app.py` | ✅ Working | Wide-layout Streamlit dashboard (see UI section below) |
+| `app.py` | ✅ Working | Wide-layout dashboard — sidebar has **two independent model dropdowns**: Vehicle Detection Model (n/s/m) and Helmet Detection Model (n/s, default s). Completion summary shows both. |
 | `style.css` | ✅ Working | Isolated dark-mode CSS; injected at runtime |
+| `models/helmet_yolov8n_v1_map74.pt.pt` | ✅ Available | Fine-tuned helmet model — YOLOv8n. mAP50: 0.746, Without-Helmet AP: 0.622. Classes: `{0: 'With Helmet', 1: 'Without Helmet'}` |
+| `models/helmet_yolov8s_v1_map74.pt` | ✅ Available | Fine-tuned helmet model — YOLOv8s. mAP50: 0.755, Without-Helmet AP: 0.649. **Default selection in UI.** |
 
 ## Recent UI / Architecture Work
 
@@ -28,8 +30,12 @@
 
 ## Known Limitations
 
-### ⚠️ CRITICAL — Helmet detection is a PLACEHOLDER
-`detect_helmet_violation()` in `violations.py` always returns `False`. A fine-tuned model (`best.pt`) was trained in Google Colab separately but has **not yet been downloaded or wired into the repo**. **This is the single highest-priority next task.**
+### Helmet Detection
+Two fine-tuned models available in `models/`. Both wired in and selectable via UI.
+- YOLOv8n: mAP50 0.746, Without-Helmet AP 0.622
+- YOLOv8s: mAP50 0.755, Without-Helmet AP 0.649 ← default
+- `HELMET_CONF_THRESHOLD = 0.50` — tune up if too many false positives, down if missing real violations
+- `DEBUG_HELMET = False` in `violations.py` — set True to print per-rider inference output
 
 ### Wrong-Way Detection — Three Documented Failure Modes
 1. **Fisheye / wide-angle lens distortion** — barrel distortion causes bounding boxes to appear to grow even for stationary or receding vehicles. Toggle is OFF by default in the UI for this reason.
@@ -48,11 +54,13 @@ Best-effort OCR. Frequently returns no result on blurry, angled, or very small p
 
 ## IMMEDIATE NEXT TASK
 
-**Wire in the trained helmet model (`best.pt`):**
-1. Download `best.pt` from Google Colab and place it in the project root.
-2. In `violations.py`, replace the body of `detect_helmet_violation()` with YOLOv8 inference on the cropped rider region.
-3. Test on a video with helmet/no-helmet cases. Adjust confidence threshold as needed.
-4. Update PROJECT_NOTES.md and commit.
+**Test helmet detection on real motorcycle footage:**
+1. Run the app on a video with riders with and without helmets.
+2. Enable `DEBUG_HELMET = True` in `violations.py` to see per-rider model output.
+3. If confidence is too low (missing real violations), lower `HELMET_CONF_THRESHOLD` (try 0.35).
+4. If false positives fire, raise `HELMET_CONF_THRESHOLD` (try 0.65).
+5. Confirm `review_needed` correctly fires for low-confidence helmet detections.
+6. Update PROJECT_NOTES.md with tuning results and commit.
 
 ---
 

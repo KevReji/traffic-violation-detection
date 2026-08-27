@@ -62,10 +62,21 @@ with st.sidebar:
     st.markdown("### ⚙️ Detection Settings")
 
     model_choice = st.selectbox(
-        "YOLO Model",
+        "Vehicle Detection Model",
         ["YOLOv8n (Fast)", "YOLOv8s (Balanced)", "YOLOv8m (Accurate, Slower)"],
         index=1,
         help="Larger models are more accurate but slower on CPU.",
+    )
+
+    helmet_model_choice = st.selectbox(
+        "Helmet Detection Model",
+        ["YOLOv8n (Fast)", "YOLOv8s (Balanced)"],
+        index=1,   # default to YOLOv8s — higher mAP50 (0.755 vs 0.746)
+        help=(
+            "YOLOv8s has slightly higher accuracy (mAP50 0.755, Without-Helmet 0.649) "
+            "vs YOLOv8n (mAP50 0.746, Without-Helmet 0.622). "
+            "Use YOLOv8n if speed matters more than accuracy."
+        ),
     )
 
     # Default False for CCTV compatibility.
@@ -107,12 +118,21 @@ if run_btn:
     clear_db()      # wipe previous run from DB
     reset_state()   # clear parking / tracking state in violations.py
 
-    model_map = {
+    # Vehicle detection model
+    vehicle_model_map = {
         "YOLOv8n (Fast)":             "yolov8n.pt",
         "YOLOv8s (Balanced)":         "yolov8s.pt",
         "YOLOv8m (Accurate, Slower)": "yolov8m.pt",
     }
-    model = load_model(model_map[model_choice])
+    model = load_model(vehicle_model_map[model_choice])
+
+    # Helmet detection model — separate model, separate .pt file, loaded independently
+    helmet_model_map = {
+        "YOLOv8n (Fast)":    os.path.join("models", "helmet_yolov8n_v1_map74.pt.pt"),
+        "YOLOv8s (Balanced)": os.path.join("models", "helmet_yolov8s_v1_map74.pt"),
+    }
+    helmet_pt = helmet_model_map[helmet_model_choice]
+    helmet_model = load_model(helmet_pt)
 
     # Total frames needed for progress bar
     _cap   = cv2.VideoCapture(tmp_path)
@@ -144,8 +164,12 @@ if run_btn:
         rgb = cv2.cvtColor(frame_data["annotated_frame"], cv2.COLOR_BGR2RGB)
         live_preview.image(rgb, use_container_width=True)
 
-        # Run violation rules on this frame
-        violations = check_violations(frame_data, enable_wrong_way=enable_wrong_way)
+        # Run violation rules on this frame (vehicle model already ran above via run_detection)
+        violations = check_violations(
+            frame_data,
+            helmet_model=helmet_model,
+            enable_wrong_way=enable_wrong_way,
+        )
 
         for v in violations:
             # Crop evidence from the ORIGINAL (unannotated) frame with 20% padding
@@ -193,7 +217,8 @@ if run_btn:
     live_preview.empty()
     status_text.success(
         f"✅ Processing complete — **{violation_count} violation(s)** detected  "
-        f"·  Model: **{model_choice}**"
+        f"·  Vehicle model: **{model_choice}**  "
+        f"·  Helmet model: **{helmet_model_choice}**"
     )
 
 # ---------------------------------------------------------------------------
