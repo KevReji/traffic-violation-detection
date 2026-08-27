@@ -413,50 +413,17 @@ eview_reason columns are correctly populated in the database.
 
 ---
 
-### NEXT SESSION / KNOWN ISSUE
+### BUG FIX: Live Preview Helmet Annotation
 **Date:** 2026-08-27
-**Note:** Known issue: the live frame preview during video processing does not draw helmet detection boxes/labels — it only shows the primary detector's boxes (person, car, motorcycle, etc). This is a DISPLAY-ONLY gap, not a detection bug — helmet violations ARE being correctly detected and logged (confirmed via Confirmed Evidence and Review Queue tabs, and PDF/CSV reports). The helmet model runs on a cropped sub-region of each rider's box, so its output boxes are in crop-local coordinates, not full-frame coordinates — any fix needs to translate crop-local coordinates back to full-frame coordinates before drawing (offset by the rider crop's x1, y1) rather than drawing them as-is.
+**Issue:** The live video preview did not draw helmet detection boxes/labels because the helmet model operated on a cropped sub-image, returning crop-local coordinates. Furthermore, check_violations() was running *after* pp.py displayed the frame, preventing any drawn boxes from appearing.
+**Resolution:**
+1. Modified detect_helmet_violation() to return the raw crop_box coordinates and the crop_offset (x1, y1 of the rider crop).
+2. Inside check_violations(), translated the crop-local box back to full-frame coordinates and drew it directly onto rame_data["annotated_frame"] using a distinct orange color ((0, 165, 255)).
+3. In pp.py, reordered the execution pipeline so check_violations() runs *before* live_preview.image(). The RGB conversion for the display is now recalculated post-violations, ensuring the helmet boxes are visible to the user live.
+**Status:** FIXED. No structural overhaul was needed.
 
-Next step for this: locate the existing box-drawing loop (grep for cv2.rectangle / cv2.putText in app.py and detection.py) to see the current annotation pattern and coordinate space before writing a fix, rather than guessing at the structure.
+---
 
-Root cause confirmed: draw_box() in utils.py draws directly using whatever coordinates it's given, with no offset logic. detect_helmet_violation() in violations.py runs the helmet model on a cropped sub-image (rider_crop), so any box the helmet model returns is in crop-local coordinates (starting at 0,0), not full-frame coordinates.
-
-Fix plan for next session:
-1. Modify detect_helmet_violation() to also return the helmet model's box 
-   coordinates (box_obj.xyxy or equivalent) inside its result dict, alongside 
-   the existing no_helmet/review_needed/confidence fields.
-2. At the call site (around line 141 in violations.py) or wherever the frame 
-   is annotated, translate the returned crop-local box back to full-frame 
-   coordinates by adding the rider crop's (x1, y1) offset — the same x1, y1 
-   already computed when the crop was created.
-3. Call draw_box() with the translated full-frame coordinates and an 
-   appropriate label (e.g. 'No Helmet' with confidence), using a distinct 
-   color from person/vehicle boxes so it's visually clear on the live feed.
-4. Do not change draw_box() itself — it's a generic utility already used 
-   correctly elsewhere; the fix belongs in how helmet detection calls it, 
-   not in the utility function.
-
-This is a display-only enhancement — helmet violations are already correctly 
-detected and logged; this just makes them visible on the live preview too.
-
-Additional complexity found: annotated_frame (with primary detector boxes 
-already drawn via draw_box) is created inside process_single_frame() in 
-detection.py, BEFORE check_violations()/detect_helmet_violation() runs in 
-violations.py. This means the frame is already finalized with its boxes by 
-the time helmet detection happens — helmet boxes can't simply be added via a 
-draw_box() call from inside violations.py on that same frame object without 
-restructuring the data flow.
-
-Two possible approaches for next session to evaluate:
-A) Pass the frame (or a mutable reference to it) into check_violations()/
-   detect_helmet_violation() so helmet boxes can be drawn onto the SAME frame 
-   object after the primary boxes, before it's returned/written to the output 
-   video. Requires checking whether frame_data['annotated_frame'] is drawn on 
-   before or after check_violations() is called relative to process_single_frame().
-B) Return helmet detections (with translated full-frame coordinates) from 
-   check_violations() back up to wherever process_single_frame() or the main 
-   loop finalizes the frame, and draw them there as a distinct final step, 
-   after both primary and helmet detections are known.
-Option B is likely cleaner and less error-prone than mutating frame state 
-mid-pipeline across files. Check the exact call order between 
-process_single_frame() and check_violations() first before deciding.
+### NEXT SESSION
+**Date:** 2026-08-27
+**Notes:** Helmet detection is fully integrated (logic, Review Queue UI, and live annotation rendering). We are ready to move on to the remaining Future Enhancements (React rewrite, analytics charts, dummy data seeder, etc.) or refine existing models as needed.
