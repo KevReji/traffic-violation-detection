@@ -167,18 +167,17 @@ if run_btn:
         if fn % 10 == 0:
             pct = min(int(fn / total * 100), 100)
             progress_bar.progress(pct, text=f"Processing frame {fn} / {total}")
-
-        # Convert BGR (OpenCV default) → RGB (what Streamlit expects) and push
-        # the annotated frame to the live preview placeholder
-        rgb = cv2.cvtColor(frame_data["annotated_frame"], cv2.COLOR_BGR2RGB)
-        live_preview.image(rgb, use_container_width=True)
-
         # Run violation rules on this frame (vehicle model already ran above via run_detection)
         violations = check_violations(
             frame_data,
             helmet_model=helmet_model,
             enable_wrong_way=actual_enable_wrong_way,
         )
+
+        # Convert BGR (OpenCV default) -> RGB (what Streamlit expects) and push
+        # the annotated frame to the live preview placeholder
+        rgb = cv2.cvtColor(frame_data["annotated_frame"], cv2.COLOR_BGR2RGB)
+        live_preview.image(rgb, use_container_width=True)
 
         for v in violations:
             # Crop evidence from the ORIGINAL (unannotated) frame with 20% padding

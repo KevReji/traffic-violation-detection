@@ -17,7 +17,7 @@ DEBUG_TRIPLE_RIDING -- prints per-frame IoU association details for triple-ridin
 DEBUG_WRONG_WAY     -- prints per-frame bounding-box growth ratios.
 """
 
-from utils import compute_iou, box_inside_zone, get_center
+from utils import compute_iou, box_inside_zone, get_center, draw_box
 from confidence import evaluate_confidence
 from detection import CONF_THRESHOLD, REVIEW_CONF_THRESHOLD
 
@@ -146,6 +146,17 @@ def check_violations(frame_data, helmet_model=None, enable_wrong_way=True):
                     frame_number=frame_number
                 )
                 if helmet_result and helmet_result.get("no_helmet"):
+                    # Translate crop-local coordinates to full-frame coordinates
+                    cx1, cy1, cx2, cy2 = helmet_result["crop_box"]
+                    ox, oy = helmet_result["crop_offset"]
+                    full_box = (cx1 + ox, cy1 + oy, cx2 + ox, cy2 + oy)
+                    
+                    # Draw directly onto the live feed frame (Orange color)
+                    annotated = frame_data.get("annotated_frame")
+                    if annotated is not None:
+                        label = f"No Helmet {helmet_result['confidence']:.2f}"
+                        draw_box(annotated, full_box, label, color=(0, 165, 255))
+
                     rider_entity_id = rider.get("track_id") or str(rider["box"])
                     if can_log("helmet", entity_id=rider_entity_id):
                         violations.append({
@@ -341,10 +352,22 @@ def detect_helmet_violation(rider_det, moto_det, frame=None, helmet_model=None, 
                 or ("no" in cls_name and "helmet" in cls_name)
             )
             if is_no_helmet:
+                crop_box = [int(v) for v in box_obj.xyxy[0].tolist()]
+                ret_dict = {
+                    "no_helmet": True, 
+                    "review_needed": False, 
+                    "review_reason": None, 
+                    "confidence": conf,
+                    "crop_box": crop_box,
+                    "crop_offset": (x1, y1)
+                }
+                
                 if conf >= CONF_THRESHOLD:
-                    return {"no_helmet": True, "review_needed": False, "review_reason": None, "confidence": conf}
+                    return ret_dict
                 elif REVIEW_CONF_THRESHOLD <= conf < CONF_THRESHOLD:
-                    return {"no_helmet": True, "review_needed": True, "review_reason": "low_confidence_detection", "confidence": conf}
+                    ret_dict["review_needed"] = True
+                    ret_dict["review_reason"] = "low_confidence_detection"
+                    return ret_dict
 
     return False
 
