@@ -434,3 +434,10 @@ eview_reason columns are correctly populated in the database.
 **Date:** 2026-08-28
 **Change:** Added HELMET_CONFIRM_THRESHOLD = 0.35 in iolations.py exclusively for helmet detection, decoupled from the shared CONF_THRESHOLD = 0.4.
 **Reason:** Manual visual review of debug_crops found clearly-correct, non-blurry "no helmet" detections scoring in the 0.31-0.42 range (just below the general threshold), causing them to unnecessarily land in the manual review queue. Genuinely blurry/ambiguous cases scored lower (0.2-0.3) and correctly stayed in review. This was an evidence-based tuning decision to adjust for the helmet model's specific underconfidence, rather than an arbitrary threshold lowering. It does not affect vehicle or triple-riding thresholds.
+
+## Red Light Detection (Stage 2)
+- Added a 
+ed_light violation rule to iolations.py.
+- **Methodology:** Classical HSV thresholding used on a fixed region of the frame. This was an explicit scope decision to avoid needing a new trained model.
+- **Manual Calibration:** Like RESTRICTED_ZONES, this requires configuring LIGHT_REGION (the traffic light bounding box) and STOP_ZONES (the stop line area) per video.
+- **Logic:** We track vehicle y-coordinates using ByTetraCk 	rack_ids. When a vehicle crosses into STOP_ZONES, we sample the current traffic light state using the LIGHT_REGION. If red, a violation is filed. If ambiguous, it defaults to the review queue (mbiguous_light_state).

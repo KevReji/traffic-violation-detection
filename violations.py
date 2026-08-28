@@ -20,6 +20,7 @@ DEBUG_WRONG_WAY     -- prints per-frame bounding-box growth ratios.
 from utils import compute_iou, box_inside_zone, get_center, draw_box
 from confidence import evaluate_confidence
 from detection import CONF_THRESHOLD, REVIEW_CONF_THRESHOLD
+from traffic_light import get_light_state
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -43,6 +44,14 @@ COOLDOWN_SECONDS = 5.0
 #   - If persons are detected but NOT associated -> lower this value (try 0.05)
 #   - If unrelated pedestrians are wrongly counted -> raise it (try 0.25)
 PERSON_MOTO_IOU_THRESHOLD = 0.10
+
+
+# ---------------------------------------------------------------------------
+# Red Light settings
+# ---------------------------------------------------------------------------
+DEBUG_RED_LIGHT = False
+LIGHT_REGION = (1720, 120, 1760, 180)
+STOP_ZONES = [(0, 600, 1920, 650)] # Same pattern as RESTRICTED_ZONES
 
 # Restricted zones: list of (x1, y1, x2, y2) rectangles in pixel coordinates.
 # Leave empty [] while testing; set real zone coords from your video later.
@@ -78,15 +87,17 @@ DEBUG_TRIPLE_RIDING = False   # <-- flip to True when investigating missed detec
 # ---------------------------------------------------------------------------
 _parking_state = {}    # {(zone_idx, v_id): first_seen_timestamp_sec}
 _last_logged_time = {} # {violation_type: last_logged_timestamp_sec}
-_track_history = {}    # {track_id: [(frame_number, area), ...]}
+_track_history = {}
+_red_light_history = {}    # {track_id: [(frame_number, area), ...]}
 
 
 def reset_state():
     """Call this at the start of each new video to clear parking state."""
-    global _parking_state, _last_logged_time, _track_history
+    global _parking_state, _last_logged_time, _track_history, _red_light_history
     _parking_state = {}
     _last_logged_time = {}
     _track_history = {}
+_red_light_history = {}
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +217,48 @@ def check_violations(frame_data, helmet_model=None, enable_wrong_way=True):
                 ", ".join("{:.2f}".format(p["confidence"]) for p in persons)
             )
         )
+
+
+    # -- Rule X: Red Light -----------------------------------------------
+    for v in vehicles:
+        track_id = v.get("track_id")
+        if track_id is not None:
+            curr_box = v["box"]
+            prev_box = _red_light_history.get(track_id)
+            if prev_box is not None:
+                for zone in STOP_ZONES:
+                    if box_inside_zone(curr_box, zone) and not box_inside_zone(prev_box, zone):
+                        if DEBUG_RED_LIGHT:
+                            print(f"[DEBUG RED_LIGHT] Vehicle {track_id} crossed stop zone.")
+                        
+                        light_state = get_light_state(frame_data["original_frame"], LIGHT_REGION)
+                        
+                        if light_state in ["red", "unknown"]:
+                            cooldown_key = f"red_light_{track_id}"
+                            if cooldown_key not in _last_logged_time or (timestamp_sec - _last_logged_time[cooldown_key] > 10.0):
+                                is_confirmed = evaluate_confidence(v["confidence"], CONF_THRESHOLD, REVIEW_CONF_THRESHOLD)
+                                
+                                violation = {
+                                    "type": "red_light",
+                                    "vehicle_type": v["class_name"],
+                                    "box": v["box"],
+                                    "confidence": v["confidence"],
+                                    "review_needed": not is_confirmed or light_state == "unknown",
+                                    "review_reason": "ambiguous_light_state" if light_state == "unknown" else ("low_confidence_detection" if not is_confirmed else "")
+                                }
+                                violations.append(violation)
+                                _last_logged_time[cooldown_key] = timestamp_sec
+                                
+                                # Draw annotation
+                                draw_box(
+                                    frame_data["annotated_frame"], 
+                                    v["box"], 
+                                    label=f"Red Light ({light_state})", 
+                                    color=(0, 0, 255) if light_state == "red" else (0, 165, 255)
+                                )
+                                
+            # Update history
+            _red_light_history[track_id] = curr_box
 
     # -- Rule 3: Illegal Parking -----------------------------------------
     for v in vehicles:
