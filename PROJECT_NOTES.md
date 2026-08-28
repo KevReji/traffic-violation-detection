@@ -448,3 +448,10 @@ ed_light violation rule to iolations.py.
 ed_light violation dictionary schema in iolations.py (added iolation_type, rame_number, 	imestamp_sec) to strictly match existing rules.
 - Because the reporting logic (CSV/PDF) and UI logic (tabs, evidence queue) dynamically render whatever is in the database, 
 ed_light automatically integrates into all downstream views without requiring any one-off UI code.
+
+## Interactive Calibration UI (Stage 4)
+- **Goal:** Replaced manual coordinate guessing/scripting with an in-app interactive calibration flow.
+- **Component:** Created calibration_ui.py using streamlit-image-coordinates to allow users to click and define STOP_ZONES (and optionally LIGHT_REGION) directly on the video's first frame.
+- **Auto-Detection Fallback:** YOLOv8 automatically hunts for the traffic light first; if found, it skips requiring manual clicks for the light region.
+- **State Management:** Clicks are tracked robustly in st.session_state["calib_clicks"] with deduplication logic to prevent runaway Streamlit re-renders.
+- **App Integration:** Wired into pp.py. If red-light detection is enabled, the main app flow (and the "Run Detection" button) is strictly halted until calibration is confirmed. The UI passes the dynamic coordinates directly into check_violations() overriding the fallback constants.
