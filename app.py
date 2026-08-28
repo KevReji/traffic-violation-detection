@@ -10,6 +10,7 @@ presentation concerns there.
 import os
 import base64
 import streamlit as st
+from calibration_ui import render_calibration
 
 # ---------------------------------------------------------------------------
 # Page config — MUST be the first Streamlit call in the script
@@ -156,6 +157,27 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # Main area — title + file info
 # ---------------------------------------------------------------------------
+if uploaded and needs_calibration:
+    # Need to render calibration UI
+    import tempfile
+    import cv2
+    
+    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    tfile.write(uploaded.getvalue())
+    cap = cv2.VideoCapture(tfile.name)
+    ret, frame0 = cap.read()
+    cap.release()
+    
+    if ret:
+        coords = render_calibration(frame0)
+        if coords:
+            st.session_state["red_light_calibration"] = coords
+            st.rerun()
+    else:
+        st.error("Failed to read video frame for calibration.")
+    
+    st.stop() # Halt rendering the rest of the main app until calibration is done
+
 st.title("VAKS — AI Traffic Detection & Management System")
 
 if not uploaded:
@@ -245,11 +267,15 @@ if run_btn:
             pct = min(int(fn / total * 100), 100)
             progress_bar.progress(pct, text=f"Processing frame {fn} / {total}")
         # Run violation rules on this frame (vehicle model already ran above via run_detection)
+        
+        calib = st.session_state.get("red_light_calibration", {})
         violations = check_violations(
             frame_data,
             helmet_model=helmet_model,
             enable_wrong_way=actual_enable_wrong_way,
             enable_red_light=actual_enable_red_light,
+            light_region=calib.get("LIGHT_REGION"),
+            stop_zones=calib.get("STOP_ZONES"),
         )
 
         # Convert BGR (OpenCV default) -> RGB (what Streamlit expects) and push

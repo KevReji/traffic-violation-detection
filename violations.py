@@ -104,7 +104,10 @@ _red_light_history = {}
 # Public API
 # ---------------------------------------------------------------------------
 
-def check_violations(frame_data, helmet_model=None, enable_wrong_way=True, enable_red_light=True):
+def check_violations(frame_data, helmet_model=None, enable_wrong_way=True, enable_red_light=True, light_region=None, stop_zones=None):
+    if frame_data.get("frame_number", 0) == 0:
+        print(f"[DEBUG OVERRIDE] check_violations received light_region={light_region}, stop_zones={stop_zones}")
+
     """
     Analyse one frame's detections and return all violations found.
 
@@ -227,12 +230,12 @@ def check_violations(frame_data, helmet_model=None, enable_wrong_way=True, enabl
                 curr_box = v["box"]
                 prev_box = _red_light_history.get(track_id)
                 if prev_box is not None:
-                    for zone in STOP_ZONES:
+                    for zone in (stop_zones if stop_zones is not None else STOP_ZONES):
                         if box_inside_zone(curr_box, zone) and not box_inside_zone(prev_box, zone):
                             if DEBUG_RED_LIGHT:
                                 print(f"[DEBUG RED_LIGHT] Vehicle {track_id} crossed stop zone.")
                             
-                            light_state = get_light_state(frame_data["original_frame"], LIGHT_REGION)
+                            light_state = get_light_state(frame_data["original_frame"], light_region if light_region is not None else LIGHT_REGION)
                             
                             if light_state in ["red", "unknown"]:
                                 cooldown_key = f"red_light_{track_id}"
