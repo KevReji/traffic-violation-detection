@@ -455,3 +455,23 @@ ed_light automatically integrates into all downstream views without requiring an
 - **Auto-Detection Fallback:** YOLOv8 automatically hunts for the traffic light first; if found, it skips requiring manual clicks for the light region.
 - **State Management:** Clicks are tracked robustly in st.session_state["calib_clicks"] with deduplication logic to prevent runaway Streamlit re-renders.
 - **App Integration:** Wired into pp.py. If red-light detection is enabled, the main app flow (and the "Run Detection" button) is strictly halted until calibration is confirmed. The UI passes the dynamic coordinates directly into check_violations() overriding the fallback constants.
+
+---
+### STATUS HANDOFF (2026-08-28)
+
+#### 1. What's currently working
+- **Core Detection Pipeline:** YOLOv8 (vehicle & helmet models) + ByteTrack integration flawlessly flags illegal parking, wrong-way, triple riding, and no-helmet violations.
+- **Red-Light Detection (New):** Classical HSV thresholding evaluates traffic light states (
+ed, yellow, green, unknown). The system correctly tracks vehicles crossing dynamic user-defined STOP_ZONES.
+- **In-App Interactive Calibration:** streamlit-image-coordinates allows users to click the video frame to define the stop line and light region in the UI, halting detection until complete.
+- **UI & Reporting:** All violations sync automatically to iolations.db, displaying natively in the Review Queue and rendering cleanly onto the PDF and CSV reports. Evidence crops are correctly padded and free of burned-in YOLO text.
+
+#### 2. Known limitations
+- **Red-Light Evaluation Bottlenecks:** The current STOP_ZONES logic relies on strict vertical y-axis tracking. Extremely oblique or horizontal intersections may require updating ox_inside_zone logic.
+- **Streamlit Refresh Quirks:** Complex UI integrations (like streamlit-image-coordinates) occasionally face state refresh loops, which we mitigated using strict deduplication (last_click), but edge cases may persist.
+- **Helmet Model Confidence:** Heavily compressed video degrades bounding box confidence, so "no helmet" detections rely heavily on the Review Queue.
+
+#### 3. What we were about to work on next
+- **React / Next.js Rewrite:** The user previously provided extensive wireframes and prompts for a dark/light mode React dashboard. A migration away from Streamlit toward this professional tech stack is a major impending milestone.
+- **Analytics & Graphs:** Further polishing the analytics reporting if we stay in Streamlit.
+- **Dummy Data Seeder:** Building a script to populate the database rapidly for dashboard testing.
