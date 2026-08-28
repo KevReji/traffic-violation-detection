@@ -5,3 +5,7 @@ evidence/
 output/
 *.mp4
 .streamlit/
+__pycache__/
+*.pyc
+*.pt
+!models/*.pt

@@ -8,12 +8,75 @@ presentation concerns there.
 """
 
 import os
+import base64
+import streamlit as st
+
+# ---------------------------------------------------------------------------
+# Page config — MUST be the first Streamlit call in the script
+# ---------------------------------------------------------------------------
+st.set_page_config(
+    page_title="VAKS — AI Traffic Detection & Management System",
+    page_icon="🚓",
+    layout="wide",
+)
+
+# ---------------------------------------------------------------------------
+# Splash Screen (Rendered IMMEDIATELY before heavy imports)
+# ---------------------------------------------------------------------------
+if "splash_shown" not in st.session_state:
+    st.session_state["splash_shown"] = True
+    try:
+        with open("assets/logo.png", "rb") as f:
+            encoded_img = base64.b64encode(f.read()).decode()
+        splash_html = f"""
+        <style>
+        @keyframes pulse {{
+            0% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.08); }}
+            100% {{ transform: scale(1); }}
+        }}
+        @keyframes fadeOutAndHide {{
+            0% {{ opacity: 1; visibility: visible; }}
+            85% {{ opacity: 1; visibility: visible; }}
+            100% {{ opacity: 0; visibility: hidden; display: none; }}
+        }}
+        .splash-overlay {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #0e1117;
+            z-index: 999999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            animation: fadeOutAndHide 2.5s forwards;
+            pointer-events: none;
+        }}
+        .splash-logo {{
+            animation: pulse 2s infinite ease-in-out;
+            max-width: 500px;
+            width: 100%;
+        }}
+        </style>
+        <div class="splash-overlay">
+            <img class="splash-logo" src="data:image/png;base64,{encoded_img}" alt="VAKS Logo">
+        </div>
+        """
+        st.markdown(splash_html, unsafe_allow_html=True)
+    except FileNotFoundError:
+        pass
+
+# ---------------------------------------------------------------------------
+# Heavy Imports & Setup (Runs while splash screen animation plays in browser)
+# ---------------------------------------------------------------------------
+import time
 import datetime
 import tempfile
 import sqlite3
-
 import cv2
-import streamlit as st
 import pandas as pd
 
 from detection import load_model, run_detection, process_single_frame
@@ -22,24 +85,14 @@ from anpr import detect_and_read_plate
 from database import init_db, insert_violation, get_all_violations, clear_db
 from report import generate_reports
 from utils import ensure_dirs, crop_region, save_image, EVIDENCE_DIR
+
 if "stop_requested" not in st.session_state:
     st.session_state["stop_requested"] = False
 
-
-# ---------------------------------------------------------------------------
-# One-time startup
-# ---------------------------------------------------------------------------
+# One-time DB/Dir startup
 init_db()
 ensure_dirs()
 
-# ---------------------------------------------------------------------------
-# Page config — MUST be the first Streamlit call in the script
-# ---------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Traffic Violation Detection",
-    page_icon="🚦",
-    layout="wide",
-)
 
 # ---------------------------------------------------------------------------
 # Inject style.css — load the file and wrap it in a <style> block.
@@ -53,7 +106,7 @@ with open(_css_path, encoding="utf-8") as _f:
 # Sidebar — all user-facing controls live here
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.title("🚦 Traffic Violation\nDetection System")
+    st.title("VAKS — AI Traffic Detection & Management System")
     st.markdown("---")
 
     uploaded = st.file_uploader(
@@ -97,7 +150,7 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # Main area — title + file info
 # ---------------------------------------------------------------------------
-st.title("Traffic Violation Detection System")
+st.title("VAKS — AI Traffic Detection & Management System")
 
 if not uploaded:
     st.info("👈  Upload a video in the sidebar to get started.")
