@@ -9,3 +9,8 @@ __pycache__/
 *.pyc
 *.pt
 !models/*.pt
+violations.db
+debug_crops/
+debug_helmet_crops/
+test_scene.jpg
+your_photo.jpg
