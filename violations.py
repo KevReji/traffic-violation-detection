@@ -25,6 +25,12 @@ from detection import CONF_THRESHOLD, REVIEW_CONF_THRESHOLD
 # Configuration
 # ---------------------------------------------------------------------------
 
+# Helmet model shows underconfidence on some clean, unambiguous crops relative to the general 
+# 0.4 threshold - lowered specifically for this violation type based on manual review of 
+# debug_crops confidence scores. Does not apply to other violation types.
+HELMET_CONFIRM_THRESHOLD = 0.35
+
+
 # How many seconds a vehicle must be stationary inside a zone to be flagged
 PARKING_TIMEOUT = 5.0   # seconds  (change this as needed)
 
@@ -344,7 +350,7 @@ def detect_helmet_violation(rider_det, moto_det, frame=None, helmet_model=None, 
                 print(
                     f"[DBG HELMET] rider_box={rider_det['box']}  "
                     f"cls={cls_name}  conf={conf:.3f}  "
-                    f"thresholds={REVIEW_CONF_THRESHOLD}/{CONF_THRESHOLD}"
+                    f"thresholds={REVIEW_CONF_THRESHOLD}/{HELMET_CONFIRM_THRESHOLD}"
                 )
 
             is_no_helmet = (
@@ -362,9 +368,9 @@ def detect_helmet_violation(rider_det, moto_det, frame=None, helmet_model=None, 
                     "crop_offset": (x1, y1)
                 }
                 
-                if conf >= CONF_THRESHOLD:
+                if conf >= HELMET_CONFIRM_THRESHOLD:
                     return ret_dict
-                elif REVIEW_CONF_THRESHOLD <= conf < CONF_THRESHOLD:
+                elif REVIEW_CONF_THRESHOLD <= conf < HELMET_CONFIRM_THRESHOLD:
                     ret_dict["review_needed"] = True
                     ret_dict["review_reason"] = "low_confidence_detection"
                     return ret_dict

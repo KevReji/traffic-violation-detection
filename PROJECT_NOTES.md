@@ -427,3 +427,10 @@ eview_reason columns are correctly populated in the database.
 ### NEXT SESSION
 **Date:** 2026-08-27
 **Notes:** Helmet detection is fully integrated (logic, Review Queue UI, and live annotation rendering). We are ready to move on to the remaining Future Enhancements (React rewrite, analytics charts, dummy data seeder, etc.) or refine existing models as needed.
+
+---
+
+### TUNING: Helmet Model Underconfidence
+**Date:** 2026-08-28
+**Change:** Added HELMET_CONFIRM_THRESHOLD = 0.35 in iolations.py exclusively for helmet detection, decoupled from the shared CONF_THRESHOLD = 0.4.
+**Reason:** Manual visual review of debug_crops found clearly-correct, non-blurry "no helmet" detections scoring in the 0.31-0.42 range (just below the general threshold), causing them to unnecessarily land in the manual review queue. Genuinely blurry/ambiguous cases scored lower (0.2-0.3) and correctly stayed in review. This was an evidence-based tuning decision to adjust for the helmet model's specific underconfidence, rather than an arbitrary threshold lowering. It does not affect vehicle or triple-riding thresholds.

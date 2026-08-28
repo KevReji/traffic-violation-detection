@@ -22,6 +22,9 @@ from anpr import detect_and_read_plate
 from database import init_db, insert_violation, get_all_violations, clear_db
 from report import generate_reports
 from utils import ensure_dirs, crop_region, save_image, EVIDENCE_DIR
+if "stop_requested" not in st.session_state:
+    st.session_state["stop_requested"] = False
+
 
 # ---------------------------------------------------------------------------
 # One-time startup
@@ -148,7 +151,13 @@ if run_btn:
         else:
             yield from run_detection(path, model=model, save_output=True)
 
-    progress_bar = st.progress(0, text="Starting...")
+    col_pb, col_stop = st.columns([4, 1])
+    with col_pb:
+        progress_bar = st.progress(0, text="Starting...")
+    with col_stop:
+        stop_btn_ph = st.empty()
+        if stop_btn_ph.button("⏹ Stop Detection"):
+            st.session_state["stop_requested"] = True
     status_text  = st.empty()
 
     # Live CCTV-style video preview
@@ -159,12 +168,20 @@ if run_btn:
     st.markdown('</div>', unsafe_allow_html=True)
 
     violation_count = 0
+    stopped_early = False
+    fn = 0
 
     for frame_data in generate_frames(tmp_path, is_image):
+        if st.session_state["stop_requested"]:
+            stopped_early = True
+            break
         fn = frame_data["frame_number"]
 
         # Update progress bar every 10 frames to keep Streamlit overhead low
         if fn % 10 == 0:
+            if st.session_state["stop_requested"]:
+                stopped_early = True
+                break
             pct = min(int(fn / total * 100), 100)
             progress_bar.progress(pct, text=f"Processing frame {fn} / {total}")
         # Run violation rules on this frame (vehicle model already ran above via run_detection)
@@ -221,13 +238,22 @@ if run_btn:
             violation_count += 1
 
     # Finalise progress and clear the live preview
-    progress_bar.progress(100, text="Done!")
+    st.session_state["stop_requested"] = False
+    stop_btn_ph.empty()
     live_preview.empty()
-    status_text.success(
-        f"✅ Processing complete — **{violation_count} violation(s)** detected  "
-        f"·  Vehicle model: **{model_choice}**  "
-        f"·  Helmet model: **{helmet_model_choice}**"
-    )
+    
+    if stopped_early:
+        progress_bar.progress(pct if 'pct' in locals() else 0, text="Stopped")
+        status_text.info(
+            f"Detection stopped early at frame {fn} — showing results from {fn} processed frames."
+        )
+    else:
+        progress_bar.progress(100, text="Done!")
+        status_text.success(
+            f"✅ Processing complete — **{violation_count} violation(s)** detected  "
+            f"·  Vehicle model: **{model_choice}**  "
+            f"·  Helmet model: **{helmet_model_choice}**"
+        )
 
 # ---------------------------------------------------------------------------
 # Results section
