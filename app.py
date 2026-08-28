@@ -143,6 +143,12 @@ with st.sidebar:
             "straight CCTV angles. Disable for fisheye / wide-angle cameras."
         ),
     )
+    
+    enable_red_light = st.checkbox(
+        "Enable Red-Light Detection",
+        value=False,
+        help="Flags vehicles crossing the defined stop line when the traffic light is red."
+    )
 
     st.markdown("---")
     run_btn = st.button("▶  Run Detection", use_container_width=True, type="primary")
@@ -187,6 +193,7 @@ if run_btn:
 
     is_image = uploaded.name.lower().endswith(('.jpg', '.jpeg', '.png'))
     actual_enable_wrong_way = enable_wrong_way and not is_image
+    actual_enable_red_light = enable_red_light and not is_image
 
     # Total frames needed for progress bar
     if is_image:
@@ -242,6 +249,7 @@ if run_btn:
             frame_data,
             helmet_model=helmet_model,
             enable_wrong_way=actual_enable_wrong_way,
+            enable_red_light=actual_enable_red_light,
         )
 
         # Convert BGR (OpenCV default) -> RGB (what Streamlit expects) and push

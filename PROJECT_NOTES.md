@@ -441,3 +441,10 @@ ed_light violation rule to iolations.py.
 - **Methodology:** Classical HSV thresholding used on a fixed region of the frame. This was an explicit scope decision to avoid needing a new trained model.
 - **Manual Calibration:** Like RESTRICTED_ZONES, this requires configuring LIGHT_REGION (the traffic light bounding box) and STOP_ZONES (the stop line area) per video.
 - **Logic:** We track vehicle y-coordinates using ByTetraCk 	rack_ids. When a vehicle crosses into STOP_ZONES, we sample the current traffic light state using the LIGHT_REGION. If red, a violation is filed. If ambiguous, it defaults to the review queue (mbiguous_light_state).
+
+## UI Integration (Stage 3)
+- Added an "Enable Red-Light Detection" toggle to the sidebar, following the wrong-way pattern.
+- Fixed the 
+ed_light violation dictionary schema in iolations.py (added iolation_type, rame_number, 	imestamp_sec) to strictly match existing rules.
+- Because the reporting logic (CSV/PDF) and UI logic (tabs, evidence queue) dynamically render whatever is in the database, 
+ed_light automatically integrates into all downstream views without requiring any one-off UI code.

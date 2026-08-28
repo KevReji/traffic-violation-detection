@@ -104,7 +104,7 @@ _red_light_history = {}
 # Public API
 # ---------------------------------------------------------------------------
 
-def check_violations(frame_data, helmet_model=None, enable_wrong_way=True):
+def check_violations(frame_data, helmet_model=None, enable_wrong_way=True, enable_red_light=True):
     """
     Analyse one frame's detections and return all violations found.
 
@@ -220,45 +220,48 @@ def check_violations(frame_data, helmet_model=None, enable_wrong_way=True):
 
 
     # -- Rule X: Red Light -----------------------------------------------
-    for v in vehicles:
-        track_id = v.get("track_id")
-        if track_id is not None:
-            curr_box = v["box"]
-            prev_box = _red_light_history.get(track_id)
-            if prev_box is not None:
-                for zone in STOP_ZONES:
-                    if box_inside_zone(curr_box, zone) and not box_inside_zone(prev_box, zone):
-                        if DEBUG_RED_LIGHT:
-                            print(f"[DEBUG RED_LIGHT] Vehicle {track_id} crossed stop zone.")
-                        
-                        light_state = get_light_state(frame_data["original_frame"], LIGHT_REGION)
-                        
-                        if light_state in ["red", "unknown"]:
-                            cooldown_key = f"red_light_{track_id}"
-                            if cooldown_key not in _last_logged_time or (timestamp_sec - _last_logged_time[cooldown_key] > 10.0):
-                                is_confirmed = evaluate_confidence(v["confidence"], CONF_THRESHOLD, REVIEW_CONF_THRESHOLD)
-                                
-                                violation = {
-                                    "type": "red_light",
-                                    "vehicle_type": v["class_name"],
-                                    "box": v["box"],
-                                    "confidence": v["confidence"],
-                                    "review_needed": not is_confirmed or light_state == "unknown",
-                                    "review_reason": "ambiguous_light_state" if light_state == "unknown" else ("low_confidence_detection" if not is_confirmed else "")
-                                }
-                                violations.append(violation)
-                                _last_logged_time[cooldown_key] = timestamp_sec
-                                
-                                # Draw annotation
-                                draw_box(
-                                    frame_data["annotated_frame"], 
-                                    v["box"], 
-                                    label=f"Red Light ({light_state})", 
-                                    color=(0, 0, 255) if light_state == "red" else (0, 165, 255)
-                                )
-                                
-            # Update history
-            _red_light_history[track_id] = curr_box
+    if enable_red_light:
+        for v in vehicles:
+            track_id = v.get("track_id")
+            if track_id is not None:
+                curr_box = v["box"]
+                prev_box = _red_light_history.get(track_id)
+                if prev_box is not None:
+                    for zone in STOP_ZONES:
+                        if box_inside_zone(curr_box, zone) and not box_inside_zone(prev_box, zone):
+                            if DEBUG_RED_LIGHT:
+                                print(f"[DEBUG RED_LIGHT] Vehicle {track_id} crossed stop zone.")
+                            
+                            light_state = get_light_state(frame_data["original_frame"], LIGHT_REGION)
+                            
+                            if light_state in ["red", "unknown"]:
+                                cooldown_key = f"red_light_{track_id}"
+                                if cooldown_key not in _last_logged_time or (timestamp_sec - _last_logged_time[cooldown_key] > 10.0):
+                                    is_confirmed = evaluate_confidence(v["confidence"], CONF_THRESHOLD, REVIEW_CONF_THRESHOLD)
+                                    
+                                    violation = {
+                                        "violation_type": "red_light",
+                                        "frame_number": frame_number,
+                                        "timestamp_sec": timestamp_sec,
+                                        "vehicle_type": v["class_name"],
+                                        "box": v["box"],
+                                        "confidence": v["confidence"],
+                                        "review_needed": not is_confirmed or light_state == "unknown",
+                                        "review_reason": "ambiguous_light_state" if light_state == "unknown" else ("low_confidence_detection" if not is_confirmed else "")
+                                    }
+                                    violations.append(violation)
+                                    _last_logged_time[cooldown_key] = timestamp_sec
+                                    
+                                    # Draw annotation
+                                    draw_box(
+                                        frame_data["annotated_frame"], 
+                                        v["box"], 
+                                        label=f"Red Light ({light_state})", 
+                                        color=(0, 0, 255) if light_state == "red" else (0, 165, 255)
+                                    )
+                                    
+                # Update history
+                _red_light_history[track_id] = curr_box
 
     # -- Rule 3: Illegal Parking -----------------------------------------
     for v in vehicles:
