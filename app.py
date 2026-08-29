@@ -210,11 +210,34 @@ if uploaded and needs_calibration:
     
     st.stop() # Halt rendering the rest of the main app until calibration is done
 
-st.title("VAKS — AI Traffic Detection & Management System")
+
+# ---------------------------------------------------------------------------
+# Background Image Injection (Static File Serving)
+# ---------------------------------------------------------------------------
+if uploaded:
+    bg_url = "app/static/background2.webp"
+else:
+    bg_url = "app/static/background1.webp"
+
+bg_css = f"""
+<style>
+[data-testid="stAppViewContainer"] {{
+    background-image: url("{bg_url}");
+    background-size: cover;
+    background-position: top center;
+    background-repeat: no-repeat;
+}}
+[data-testid="stHeader"] {{
+    background-color: transparent !important;
+}}
+</style>
+"""
+st.markdown(bg_css, unsafe_allow_html=True)
 
 if not uploaded:
-    st.info("👈  Upload a video in the sidebar to get started.")
     st.stop()
+
+
 
 # Save the upload to a temp file so OpenCV can open it by path
 with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as _tmp:

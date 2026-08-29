@@ -537,3 +537,9 @@ pipeline are demonstrated as working correctly and reliably on Redlight4.mp4. Re
 demonstrates correct STOP_ZONES crossing-detection and correct in-app calibration UI
 behavior, but its light-color reading is not reliable without further work outside this
 project's scope.
+
+### UI Optimization & Background Changes (2026-08-30)
+
+1. **Static File Serving for Backgrounds:** Switched background image delivery from base64-embedded CSS to Streamlit's native static file serving (enableStaticServing = true in .streamlit/config.toml, files served from static/ folder). This fixed a real performance issue where large base64 payloads (~7.7MB originally) were being re-transmitted on every Streamlit rerun during active video detection, causing significant lag. 
+   *Note:* Any future config.toml changes require a full server restart, not just a browser refresh, to take effect.
+2. **Background Position Adjustment:** Changed the CSS ackground-position to "top center". This ensures the images are anchored to the top of the viewport, so any responsive cropping from ackground-size: cover happens at the bottom of the image, preventing the decorative title text near the top from being sliced off on wider screens.
