@@ -11,6 +11,7 @@ import os
 import base64
 import streamlit as st
 from calibration_ui import render_calibration
+from calibration_presets import KNOWN_CALIBRATIONS
 
 # ---------------------------------------------------------------------------
 # Page config — MUST be the first Streamlit call in the script
@@ -154,12 +155,28 @@ with st.sidebar:
     is_image = uploaded is not None and uploaded.name.lower().endswith(('.jpg', '.jpeg', '.png'))
     actual_enable_red_light = enable_red_light and not is_image
     
+    # Auto-load calibration preset if matched and not explicitly recalibrating
+    if uploaded is not None:
+        if "last_uploaded_file" not in st.session_state or st.session_state["last_uploaded_file"] != uploaded.name:
+            st.session_state["last_uploaded_file"] = uploaded.name
+            if "force_manual_calib" in st.session_state: del st.session_state["force_manual_calib"]
+            if "red_light_calibration" in st.session_state: del st.session_state["red_light_calibration"]
+            
+        if actual_enable_red_light and "red_light_calibration" not in st.session_state:
+            if uploaded.name in KNOWN_CALIBRATIONS and not st.session_state.get("force_manual_calib"):
+                st.session_state["red_light_calibration"] = KNOWN_CALIBRATIONS[uploaded.name]
+
     needs_calibration = actual_enable_red_light and ("red_light_calibration" not in st.session_state)
 
     st.markdown("---")
     if actual_enable_red_light and not needs_calibration:
-        st.success("Calibration complete.")
+        if uploaded is not None and uploaded.name in KNOWN_CALIBRATIONS and not st.session_state.get("force_manual_calib"):
+            st.success("Calibration loaded for this camera.")
+        else:
+            st.success("Calibration complete.")
+            
         if st.button("Recalibrate"):
+            st.session_state["force_manual_calib"] = True
             if "red_light_calibration" in st.session_state: del st.session_state["red_light_calibration"]
             if "calib_auto_light" in st.session_state: del st.session_state["calib_auto_light"]
             if "calib_clicks" in st.session_state: del st.session_state["calib_clicks"]

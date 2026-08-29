@@ -457,6 +457,12 @@ ed_light automatically integrates into all downstream views without requiring an
 - **App Integration:** Wired into pp.py. If red-light detection is enabled, the main app flow (and the "Run Detection" button) is strictly halted until calibration is confirmed. The UI passes the dynamic coordinates directly into check_violations() overriding the fallback constants.
 
 ---
+
+## Calibration Presets (Stage 5)
+- Added KNOWN_CALIBRATIONS dictionary in calibration_presets.py.
+- **Pre-saved videos**: Redlight4.mp4 and Redlight5.mp4 have their verified stop-lines and light-regions saved.
+- **Behavior**: If the uploaded filename matches a known preset, the app automatically populates the session state, skips the interactive UI, and immediately enables the "Run Detection" button. A "Recalibrate" button is provided to override presets manually if needed. New or unrecognized videos gracefully fall back to the interactive calibration UI.
+
 ### STATUS HANDOFF (2026-08-28)
 
 #### 1. What's currently working
