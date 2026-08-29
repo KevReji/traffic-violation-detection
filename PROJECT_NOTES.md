@@ -463,6 +463,24 @@ ed_light automatically integrates into all downstream views without requiring an
 - **Pre-saved videos**: Redlight4.mp4 and Redlight5.mp4 have their verified stop-lines and light-regions saved.
 - **Behavior**: If the uploaded filename matches a known preset, the app automatically populates the session state, skips the interactive UI, and immediately enables the "Run Detection" button. A "Recalibrate" button is provided to override presets manually if needed. New or unrecognized videos gracefully fall back to the interactive calibration UI.
 
+
+### Red-Light Logic Upgrade & UI Presets (2026-08-29)
+
+1. **Line-Crossing Geometry Update:** Upgraded red-light detection from rectangle-zone (any-overlap) to line-crossing (has_fully_crossed_line() in utils.py). This requires ALL 4 corners of the vehicle's bounding box to completely cross the line before firing, fixing a false-positive risk where a rectangle zone could trigger on partial overlap (e.g. a car's front bumper edge poking in before actually crossing the real stop line). STOP_LINE (two endpoint tuples) replaces STOP_ZONES (axis-aligned rectangle), enabling the calibrated line to match a real stop line's camera-perspective tilt/angle.
+
+2. **UI Data Structure Bug Fix:** Fixed a NameError bug in calibration_ui.py: line 70 referenced an undefined variable points. This was a leftover from a blind find/replace during the rectangle-to-line refactor that copied calibrate.py's tuple-based convention into this file, which actually uses clicks (a list of dicts with 'x'/'y' keys from streamlit-image-coordinates). The root cause was a data-structure mismatch, not just a naming mismatch. *Note:* This is the SECOND occurrence of this exact class of copy-paste bug in this refactor. Any third occurrence warrants a full-file audit rather than patching single reported lines.
+
+3. **Confirmed Calibration Coordinates:** Real, literal calibration coordinates (not proxy/reused values) have been confirmed for two videos:
+   - Redlight4.mp4: LIGHT_REGION=(1725,124,1752,177), STOP_LINE=((834,628),(1533,675))
+   - Redlight5.mp4: LIGHT_REGION=(985,56,998,69), STOP_LINE=((398,630),(1092,680))
+   Both were visually verified via annotated screenshots. *Note:* Redlight5.mp4 has a separate, already-documented, closed limitation: HSV light-color detection is unreliable on this camera due to LED "blooming" toward white/yellow in compressed footage. The STOP_LINE geometry itself is fine, only get_light_state()'s color reading is affected (not being further chased due to two-attempt cap).
+
+4. **KNOWN_CALIBRATIONS Preset Feature:** Built and confirmed the KNOWN_CALIBRATIONS preset feature. Uploading a video whose filename matches a known preset (Redlight4.mp4, Redlight5.mp4) auto-loads its calibration and skips the calibration UI entirely, showing "Calibration loaded for this camera" with a "Recalibrate" override button available. This was confirmed both at the UI level (manual test) and the pipeline level (real end-to-end run). Any video NOT in the preset dict correctly falls back to showing the full calibration UI (confirmed via manual test).
+
+5. **Definitive End-to-End Test (Redlight4.mp4):** Conducted a real end-to-end pipeline test on Redlight4.mp4 using the ACTUAL confirmed preset coordinates (not proxy values). The violation fired at frame 52, confidence 0.8712, vehicle_type=car. Debug output explicitly confirmed check_violations() received the correct light_region/stop_line values. 113 frames were processed in total. *This is the definitive, trustworthy result* — an earlier test using proxy/reused rectangle-corner coordinates as a stand-in fired at frame 56; that number is now superseded and should not be cited going forward.
+
+6. **Cleanup:** Confirmed DEBUG_RED_LIGHT is set to False in the code now that the pipeline is validated.
+
 ### STATUS HANDOFF (2026-08-28)
 
 #### 1. What's currently working
