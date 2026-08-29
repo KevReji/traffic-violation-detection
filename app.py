@@ -226,323 +226,249 @@ st.caption(f"📁 **{uploaded.name}**  ·  {os.path.getsize(tmp_path) // 1024} K
 # ---------------------------------------------------------------------------
 # Processing block — runs only when "Run Detection" is clicked
 # ---------------------------------------------------------------------------
-if run_btn:
-    clear_db()      # wipe previous run from DB
-    reset_state()   # clear parking / tracking state in violations.py
-
-    # Vehicle detection model
-    vehicle_model_map = {
-        "YOLOv8n (Fast)":             "yolov8n.pt",
-        "YOLOv8s (Balanced)":         "yolov8s.pt",
-        "YOLOv8m (Accurate, Slower)": "yolov8m.pt",
-    }
-    model = load_model(vehicle_model_map[model_choice])
-
-    # Helmet detection model — separate model, separate .pt file, loaded independently
-    helmet_model_map = {
-        "YOLOv8s v2 (Motorcycle)": os.path.join("models", "helmet_yolov8s_v2_motorcycle.pt"),
-    }
-    helmet_pt = helmet_model_map[helmet_model_choice]
-    helmet_model = load_model(helmet_pt)
-
-    is_image = uploaded.name.lower().endswith(('.jpg', '.jpeg', '.png'))
-    actual_enable_wrong_way = enable_wrong_way and not is_image
-    actual_enable_red_light = enable_red_light and not is_image
-
-    # Total frames needed for progress bar
-    if is_image:
-        total = 1
-    else:
-        _cap   = cv2.VideoCapture(tmp_path)
-        total  = int(_cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
-        _cap.release()
-
-    def generate_frames(path, is_img):
-        if is_img:
-            frame = cv2.imread(path)
-            if frame is not None:
-                yield process_single_frame(frame, model, 0, 0.0)
-        else:
-            yield from run_detection(path, model=model, save_output=True)
-
-    col_pb, col_stop = st.columns([4, 1])
-    with col_pb:
-        progress_bar = st.progress(0, text="Starting...")
-    with col_stop:
-        stop_btn_ph = st.empty()
-        if stop_btn_ph.button("⏹ Stop Detection"):
-            st.session_state["stop_requested"] = True
-    status_text  = st.empty()
-
-    # Live CCTV-style video preview
-    # The .cctv-feed div is defined in style.css — gives the neon border +
-    # blinking LIVE indicator without touching any Python styling code.
-    st.markdown('<div class="cctv-feed">', unsafe_allow_html=True)
-    live_preview = st.empty()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    violation_count = 0
-    stopped_early = False
-    fn = 0
-
-    for frame_data in generate_frames(tmp_path, is_image):
-        if st.session_state["stop_requested"]:
-            stopped_early = True
-            break
-        fn = frame_data["frame_number"]
-
-        # Update progress bar every 10 frames to keep Streamlit overhead low
-        if fn % 10 == 0:
-            if st.session_state["stop_requested"]:
-                stopped_early = True
-                break
-            pct = min(int(fn / total * 100), 100)
-            progress_bar.progress(pct, text=f"Processing frame {fn} / {total}")
-        # Run violation rules on this frame (vehicle model already ran above via run_detection)
-        
-        calib = st.session_state.get("red_light_calibration", {})
-        violations = check_violations(
-            frame_data,
-            helmet_model=helmet_model,
-            enable_wrong_way=actual_enable_wrong_way,
-            enable_red_light=actual_enable_red_light,
-            light_region=calib.get("LIGHT_REGION"),
-            stop_line=calib.get("STOP_LINE"),
-        )
-
-        # Convert BGR (OpenCV default) -> RGB (what Streamlit expects) and push
-        # the annotated frame to the live preview placeholder
-        rgb = cv2.cvtColor(frame_data["annotated_frame"], cv2.COLOR_BGR2RGB)
-        live_preview.image(rgb, use_container_width=True)
-
-        for v in violations:
-            # Crop evidence from the ORIGINAL (unannotated) frame with 20% padding
-            crop = crop_region(frame_data["original_frame"], v["box"], padding_pct=0.20)
-            ts   = datetime.datetime.now().isoformat()
-
-            # Insert row first so we get the auto-increment ID for file naming
-            vid = insert_violation(
-                timestamp=ts,
-                frame_number=v["frame_number"],
-                violation_type=v["violation_type"],
-                vehicle_type=v["vehicle_type"],
-                confidence_score=round(v["confidence"], 4),
-                review_needed=v.get("review_needed", False),
-                review_reason=v.get("review_reason", None),
-            )
-
-            # Save padded evidence image
-            ev_path = None
-            if crop is not None:
-                ev_path = os.path.join(EVIDENCE_DIR, f"ev_{vid:04d}.jpg")
-                save_image(crop, ev_path)
-
-            # ANPR — fed the clean original frame (no YOLO text burned in)
-            anpr_result = detect_and_read_plate(
-                frame_data["original_frame"], v["box"], vid)
-
-            # Update the DB row with file paths + plate text
-            conn = sqlite3.connect("violations.db")
-            conn.execute(
-                "UPDATE violations SET evidence_image_path=?, plate_text=?, "
-                "plate_image_path=? WHERE id=?",
-                (ev_path,
-                 anpr_result["plate_text"],
-                 anpr_result["plate_image_path"],
-                 vid),
-            )
-            conn.commit()
-            conn.close()
-
-            violation_count += 1
-
-    # Finalise progress and clear the live preview
-    st.session_state["stop_requested"] = False
-    stop_btn_ph.empty()
-    live_preview.empty()
-    
-    if stopped_early:
-        progress_bar.progress(pct if 'pct' in locals() else 0, text="Stopped")
-        status_text.info(
-            f"Detection stopped early at frame {fn} — showing results from {fn} processed frames."
-        )
-    else:
-        progress_bar.progress(100, text="Done!")
-        status_text.success(
-            f"✅ Processing complete — **{violation_count} violation(s)** detected  "
-            f"·  Vehicle model: **{model_choice}**  "
-            f"·  Helmet model: **{helmet_model_choice}**"
-        )
 
 # ---------------------------------------------------------------------------
-# Results section
-#
-# IMPORTANT — this block lives OUTSIDE the `if run_btn:` guard.
-# Streamlit re-runs the entire script on every interaction (including
-# download-button clicks).  Placing results here means they are re-drawn
-# from the database on every rerun, so clicking a download button does NOT
-# wipe the screen.
+# Unified Dashboard Layout (Stage B)
 # ---------------------------------------------------------------------------
 rows = get_all_violations()
+show_dash = run_btn or rows
 
-if rows:
-    df_all       = pd.DataFrame([dict(r) for r in rows])
-    df_confirmed = df_all[df_all["review_needed"] != 1]
-    df_review    = df_all[df_all["review_needed"] == 1]
-
-    # ── Top-level metrics ────────────────────────────────────────────────────
-    st.markdown("---")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Violations", len(df_all))
-    m2.metric("Confirmed",        len(df_confirmed))
-    m3.metric("Needs Review",     len(df_review))
-    m4.metric("Violation Types",  df_all["violation_type"].nunique())
+if show_dash:
     st.markdown("---")
 
-    # ── Three-tab results panel ──────────────────────────────────────────────
-    tab_db, tab_evidence, tab_review = st.tabs([
-        "📋  Database & Reports",
-        "🖼️  Confirmed Evidence",
-        "🔍  Review Queue",
-    ])
+    row1_ph = st.empty()
 
-    # ── Tab 1: Database & Reports ────────────────────────────────────────────
-    with tab_db:
-        st.subheader("All Violations")
-        st.dataframe(df_all, use_container_width=True)
+    col_live, col_chart = st.columns([2, 1])
+    with col_live:
+        title_ph = st.empty()
+        st.markdown('<div class="cctv-feed">', unsafe_allow_html=True)
+        live_preview = st.empty()
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        pb_col, stop_col = st.columns([4, 1])
+        with pb_col:
+            progress_bar = st.empty()
+        with stop_col:
+            stop_btn_ph = st.empty()
 
-        # Generate reports from whatever is in the DB right now
-        csv_path, pdf_path = generate_reports()
+    with col_chart:
+        st.markdown("#### SESSION BREAKDOWN")
+        st.caption("(Data shown for THIS session only, database clears upon exit)")
+        chart_ph = st.empty()
 
-        col1, col2 = st.columns(2)
-        with col1:
-            if csv_path and os.path.exists(csv_path):
-                with open(csv_path, "rb") as f:
-                    st.download_button(
-                        "⬇️  Download CSV Report",
-                        f,
-                        file_name="violations_report.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                    )
-        with col2:
-            if pdf_path and os.path.exists(pdf_path):
-                with open(pdf_path, "rb") as f:
-                    st.download_button(
-                        "⬇️  Download PDF Report",
-                        f,
-                        file_name="violations_report.pdf",
-                        mime="application/pdf",
-                        use_container_width=True,
-                    )
+    st.markdown("#### Violation Log")
+    log_ph = st.empty()
+    download_ph = st.empty()
 
-    # ── Tab 2: Confirmed Evidence ────────────────────────────────────────────
-    with tab_evidence:
-        if df_confirmed.empty:
-            st.info("No auto-confirmed violations in this run.")
+    def update_dashboard(current_f, total_f, is_finished=False):
+        current_rows = get_all_violations()
+        df = pd.DataFrame([dict(r) for r in current_rows]) if current_rows else pd.DataFrame()
+        
+        tot = len(df) if not df.empty else 0
+        conf = len(df[df["review_needed"] == 0]) if not df.empty else 0
+        rev = len(df[df["review_needed"] == 1]) if not df.empty else 0
+        
+        status_txt = "Complete" if is_finished else f"{current_f} / {total_f} Frames"
+        
+        with row1_ph.container():
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("TOTAL VIOLATIONS", tot)
+            m2.metric("CONFIRMED", conf)
+            m3.metric("NEEDS REVIEW", rev)
+            m4.metric("PROCESSING PROGRESS", status_txt)
+
+        if not df.empty:
+            counts = df["violation_type"].value_counts()
         else:
-            st.caption(
-                f"{len(df_confirmed)} confirmed violation(s) — "
-                "review_needed = False"
-            )
-            cols_per_row = 4
-            records      = df_confirmed.to_dict("records")
-            for i in range(0, len(records), cols_per_row):
-                cols = st.columns(cols_per_row)
-                for col, row in zip(cols, records[i : i + cols_per_row]):
-                    ep = row.get("evidence_image_path")
-                    with col:
-                        if ep and os.path.exists(ep):
-                            st.image(
-                                ep,
-                                caption=(
-                                    f"ID {row['id']}  ·  {row['violation_type']}\n"
-                                    f"Plate: {row['plate_text'] or 'N/A'}"
-                                ),
+            counts = pd.Series(dtype=int)
+            
+        ALL_TYPES = ['helmet', 'triple_riding', 'illegal_parking', 'wrong_way', 'red_light']
+        counts = counts.reindex(ALL_TYPES, fill_value=0)
+        
+        chart_df = counts.reset_index()
+        chart_df.columns = ["Violation Type", "Count"]
+        
+        display_names = {
+            'helmet': 'Helmet',
+            'triple_riding': 'Triple Riding',
+            'illegal_parking': 'Illegal Parking',
+            'wrong_way': 'Wrong-Way',
+            'red_light': 'Red-Light'
+        }
+        chart_df["Violation Type"] = chart_df["Violation Type"].map(display_names)
+        
+        print(f"--- Chart DataFrame (Frame {current_f}) ---")
+        print(chart_df)
+        
+        chart_ph.bar_chart(chart_df, x="Violation Type", y="Count")
+
+        with log_ph.container():
+            if not df.empty:
+                disp_df = df.copy()
+                disp_df["Status"] = disp_df["review_needed"].apply(lambda x: "Needs Review" if x else "Confirmed")
+                
+                cols = ["id", "violation_type", "vehicle_type", "frame_number", "timestamp", "confidence_score", "Status"]
+                cols = [c for c in cols if c in disp_df.columns]
+                disp_df = disp_df[cols]
+                
+                def color_status(val):
+                    if val == 'Confirmed':
+                        return 'background-color: rgba(39, 174, 96, 0.2); color: #2ecc71;'
+                    elif val == 'Needs Review':
+                        return 'background-color: rgba(230, 126, 34, 0.2); color: #e67e22;'
+                    return ''
+                
+                styled_df = disp_df.style.map(color_status, subset=['Status']) if 'Status' in disp_df.columns else disp_df
+                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("No violations detected yet.")
+                
+        if is_finished and not df.empty:
+            with download_ph.container():
+                csv_path, pdf_path = generate_reports()
+                c1, c2 = st.columns(2)
+                with c1:
+                    if csv_path and os.path.exists(csv_path):
+                        with open(csv_path, "rb") as f:
+                            st.download_button(
+                                "⬇️  Download CSV Report",
+                                f,
+                                file_name="violations_report.csv",
+                                mime="text/csv",
                                 use_container_width=True,
                             )
-                            # Green badge below the image
-                            st.markdown(
-                                '<span class="badge-confirmed">Confirmed</span>',
-                                unsafe_allow_html=True,
+                with c2:
+                    if pdf_path and os.path.exists(pdf_path):
+                        with open(pdf_path, "rb") as f:
+                            st.download_button(
+                                "⬇️  Download PDF Report",
+                                f,
+                                file_name="violations_report.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
                             )
-                        else:
-                            st.markdown(
-                                f"**ID {row['id']}** — {row['violation_type']}  \n"
-                                f"_(no image saved)_"
-                            )
+        elif not is_finished:
+            download_ph.empty()
 
-    # ── Tab 3: Review Queue ──────────────────────────────────────────────────
-    with tab_review:
-        if df_review.empty:
-            st.success("✅  No violations flagged for manual review.")
+    if run_btn:
+        clear_db()
+        reset_state()
+        
+        vehicle_model_map = {
+            "YOLOv8n (Fast)":             "yolov8n.pt",
+            "YOLOv8s (Balanced)":         "yolov8s.pt",
+            "YOLOv8m (Accurate, Slower)": "yolov8m.pt",
+        }
+        model = load_model(vehicle_model_map[model_choice])
+        
+        helmet_model_map = {
+            "YOLOv8s v2 (Motorcycle)": os.path.join("models", "helmet_yolov8s_v2_motorcycle.pt"),
+        }
+        helmet_pt = helmet_model_map[helmet_model_choice]
+        helmet_model = load_model(helmet_pt)
+
+        is_image = uploaded.name.lower().endswith(('.jpg', '.jpeg', '.png'))
+        actual_enable_wrong_way = enable_wrong_way and not is_image
+        actual_enable_red_light = enable_red_light and not is_image
+
+        if is_image:
+            total = 1
         else:
-            st.warning(
-                f"⚠️  **{len(df_review)} violation(s)** require manual review.  "
-                "These were flagged due to low detection confidence, a very small "
-                "object, or insufficient tracking history — human judgement is needed "
-                "before enforcement action."
-            )
-            # Concise table showing only the review-relevant columns
-            st.dataframe(
-                df_review[[
-                    "id", "frame_number", "violation_type", "vehicle_type",
-                    "confidence_score", "review_reason", "plate_text",
-                ]],
-                use_container_width=True,
-            )
-            st.markdown("#### Evidence")
-            cols_per_row = 4
-            records      = df_review.to_dict("records")
-            for i in range(0, len(records), cols_per_row):
-                cols = st.columns(cols_per_row)
-                for col, row in zip(cols, records[i : i + cols_per_row]):
-                    ep = row.get("evidence_image_path")
-                    with col:
-                        # Format plate text safely
-                        plate_val = row.get("plate_text")
-                        if not plate_val or str(plate_val).strip() == "" or str(plate_val).lower() == "nan":
-                            plate_display = "Not detected"
-                        else:
-                            plate_display = str(plate_val)
-                            
-                        # Format confidence score safely
-                        conf_val = row.get("confidence_score")
-                        try:
-                            conf_str = f"{float(conf_val):.2f}"
-                        except (ValueError, TypeError):
-                            conf_str = "N/A"
-                            
-                        if ep and os.path.exists(ep):
-                            st.image(ep, use_container_width=True)
-                            
-                            st.markdown(f"""<div style="font-size:0.85em; line-height:1.4; margin-bottom: 5px;">
-<b>{row.get('violation_type')}</b> ({row.get('vehicle_type')})<br>
-Conf: {conf_str}<br>
-Reason: {row.get('review_reason')}<br>
-Frame: {row.get('frame_number')} | {row.get('timestamp')}<br>
-Plate: {plate_display}
-</div>""", unsafe_allow_html=True)
+            _cap = cv2.VideoCapture(tmp_path)
+            total = int(_cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+            _cap.release()
 
-                            # Amber badge below the image
-                            st.markdown(
-                                '<span class="badge-review">Needs Review</span>',
-                                unsafe_allow_html=True,
-                            )
-                        else:
-                            st.markdown(f"""<div style="font-size:0.85em; line-height:1.4; margin-bottom: 5px;">
-<b>ID {row.get('id')}</b> - {row.get('violation_type')} ({row.get('vehicle_type')})<br>
-Conf: {conf_str}<br>
-Reason: {row.get('review_reason')}<br>
-Frame: {row.get('frame_number')} | {row.get('timestamp')}<br>
-Plate: {plate_display}<br>
-<i>(no image saved)</i>
-</div>""", unsafe_allow_html=True)
+        def generate_frames(path, is_img):
+            if is_img:
+                frame = cv2.imread(path)
+                if frame is not None:
+                    yield process_single_frame(frame, model, 0, 0.0)
+            else:
+                yield from run_detection(path, model=model, save_output=True)
+
+        if stop_btn_ph.button("🛑 Stop Detection"):
+            st.session_state["stop_requested"] = True
+
+        title_ph.markdown(f"#### CURRENTLY PROCESSING: Frame 0 / {total}")
+        progress_bar.progress(0, text="Starting...")
+
+        fn = 0
+        for frame_data in generate_frames(tmp_path, is_image):
+            if st.session_state.get("stop_requested", False):
+                break
+                
+            fn = frame_data["frame_number"]
+            
+            calib = st.session_state.get("red_light_calibration", {})
+            violations = check_violations(
+                frame_data,
+                helmet_model=helmet_model,
+                enable_wrong_way=actual_enable_wrong_way,
+                enable_red_light=actual_enable_red_light,
+                light_region=calib.get("LIGHT_REGION"),
+                stop_line=calib.get("STOP_LINE"),
+            )
+
+            rgb = cv2.cvtColor(frame_data["annotated_frame"], cv2.COLOR_BGR2RGB)
+            live_preview.image(rgb, use_container_width=True)
+
+            for v in violations:
+                crop = crop_region(frame_data["original_frame"], v["box"], padding_pct=0.20)
+                ts = datetime.datetime.now().isoformat()
+
+                vid = insert_violation(
+                    timestamp=ts,
+                    frame_number=v["frame_number"],
+                    violation_type=v["violation_type"],
+                    vehicle_type=v["vehicle_type"],
+                    confidence_score=round(v["confidence"], 4),
+                    review_needed=v.get("review_needed", False),
+                    review_reason=v.get("review_reason", None),
+                )
+                ev_path = None
+                if crop is not None and crop.size > 0:
+                    ev_path = os.path.join(EVIDENCE_DIR, f"{vid}.jpg")
+                    save_image(crop, ev_path)
+                
+                import sqlite3
+                
+                # ANPR — fed the clean original frame (no YOLO text burned in)
+                anpr_result = detect_and_read_plate(
+                    frame_data["original_frame"], v["box"], vid)
+                
+                # Update the DB row with file paths + plate text
+                conn = sqlite3.connect("violations.db")
+                conn.execute(
+                    "UPDATE violations SET evidence_image_path=?, plate_text=?, "
+                    "plate_image_path=? WHERE id=?",
+                    (ev_path,
+                     anpr_result["plate_text"],
+                     anpr_result["plate_image_path"],
+                     vid),
+                )
+                conn.commit()
+                conn.close()
+
+            if fn % 10 == 0 or fn == 1:
+                pct = min(int(fn / total * 100), 100)
+                progress_bar.progress(pct, text=f"Processing frame {fn} / {total}")
+                title_ph.markdown(f"#### CURRENTLY PROCESSING: Frame {fn} / {total}")
+                update_dashboard(fn, total, is_finished=False)
+                
+        title_ph.markdown("#### CURRENTLY PROCESSING: Complete")
+        progress_bar.empty()
+        stop_btn_ph.empty()
+        update_dashboard(fn, total, is_finished=True)
+
+    elif rows:
+        title_ph.markdown("#### CURRENTLY PROCESSING: Complete")
+        update_dashboard(0, 0, is_finished=True)
 
 # ---------------------------------------------------------------------------
 # Clean up temp file (best-effort — may already be gone on a later rerun)
 # ---------------------------------------------------------------------------
 try:
-    os.unlink(tmp_path)
+    if 'tmp_path' in locals():
+        os.unlink(tmp_path)
 except Exception:
     pass
