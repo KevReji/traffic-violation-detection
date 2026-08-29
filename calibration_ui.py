@@ -67,7 +67,7 @@ def render_calibration(frame):
 
     if len(clicks) == target_clicks:
         if st.button("Confirm Calibration", type="primary"):
-            stop_line = ((points[0][0], points[0][1]), (points[1][0], points[1][1])) if len(points) >= 2 else None
+            stop_line = ((clicks[0]['x'], clicks[0]['y']), (clicks[1]['x'], clicks[1]['y']))
             light_region = auto_light
             if not auto_light:
                 light_region = (clicks[2]["x"], clicks[2]["y"], clicks[3]["x"], clicks[3]["y"])
