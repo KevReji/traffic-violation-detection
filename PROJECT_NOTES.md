@@ -543,3 +543,13 @@ project's scope.
 1. **Static File Serving for Backgrounds:** Switched background image delivery from base64-embedded CSS to Streamlit's native static file serving (enableStaticServing = true in .streamlit/config.toml, files served from static/ folder). This fixed a real performance issue where large base64 payloads (~7.7MB originally) were being re-transmitted on every Streamlit rerun during active video detection, causing significant lag. 
    *Note:* Any future config.toml changes require a full server restart, not just a browser refresh, to take effect.
 2. **Background Position Adjustment:** Changed the CSS ackground-position to "top center". This ensures the images are anchored to the top of the viewport, so any responsive cropping from ackground-size: cover happens at the bottom of the image, preventing the decorative title text near the top from being sliced off on wider screens.
+
+### Known Issue / Next Session (2026-08-30)
+
+**Confirmation:** The ackground-position: top center fix and static file serving are both confirmed working by the user as of this session (title no longer cropped, backgrounds display correctly, performance is acceptable).
+
+**Known issue found while testing the new background image feature:** when video detection completes (or is stopped early via Stop Detection), live_preview.empty() clears the live feed placeholder entirely, leaving a visible empty gap in the layout - previously invisible against a plain dark background, but now visually obvious since the background image renders through the gap.
+
+**Planned fix for next session:** instead of clearing live_preview on completion/early-stop, keep the LAST successfully processed annotated frame displayed there (rame_data['annotated_frame'] from the final loop iteration) rather than calling live_preview.empty(). This applies to both the normal-completion path and the Stop Detection early-break path. Only exception: if zero frames were processed at all (edge case), leaving it empty is fine since there's nothing to show.
+
+This is a good UX improvement independent of the background image issue that surfaced it - ending on a frozen 'here's the final result' frame is better for a demo than the feed vanishing. Do not touch detection logic, the Stop Detection button's break logic, or any other part of the finalization flow when implementing this - only change whether/what live_preview shows at the end.
