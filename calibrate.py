@@ -84,7 +84,7 @@ def main():
         if key == ord('q'):
             break
         elif key == ord('s'):
-            stop_line = ((points[0][0], points[0][1]), (points[1][0], points[1][1])) if len(points) >= 2 else None if len(points) >= 2 else None
+            stop_line = ((points[0][0], points[0][1]), (points[1][0], points[1][1])) if len(points) >= 2 else None
             light_region = auto_light_coords
             if len(points) == 4:
                 light_region = (points[2][0], points[2][1], points[3][0], points[3][1])
@@ -92,7 +92,7 @@ def main():
             print("\n--- CALIBRATION RESULTS ---")
             if light_region:
                 print(f"LIGHT_REGION = {light_region}")
-            if stop_zone:
+            if stop_line:
                 print(f"STOP_LINE = {stop_line}")
                 
             os.makedirs("debug_traffic", exist_ok=True)
