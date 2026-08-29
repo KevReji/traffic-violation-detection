@@ -46,7 +46,7 @@ def render_calibration(frame):
 
     st.write("### Red-Light Calibration")
     if auto_light:
-        st.info("A traffic light was **auto-detected** (yellow). Please click **2 points** (top-left, bottom-right) to define the STOP LINE.")
+        st.info("A traffic light was **auto-detected** (yellow). Please click **2 points** along the painted stop line to define the STOP LINE.")
     else:
         st.warning("No traffic light auto-detected. Click **2 points** for the STOP LINE, then **2 MORE points** for the LIGHT REGION.")
 
