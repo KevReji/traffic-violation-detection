@@ -2,7 +2,7 @@
 import os
 from ultralytics import YOLO
 
-VIDEO_PATH = "test_videos/Redlight5.mp4"
+VIDEO_PATH = "test_videos/Redlight4.mp4"
 model = YOLO("yolov8n.pt")
 MAX_DISPLAY_HEIGHT = 900
 
