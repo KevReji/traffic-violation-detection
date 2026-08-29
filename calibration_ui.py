@@ -34,8 +34,8 @@ def render_calibration(frame):
         cv2.circle(display_frame, (c["x"], c["y"]), 5, (0, 0, 255), -1)
 
     if len(clicks) >= 2:
-        cv2.rectangle(display_frame, (clicks[0]["x"], clicks[0]["y"]), (clicks[1]["x"], clicks[1]["y"]), (0, 0, 255), 2)
-        cv2.putText(display_frame, "STOP ZONE", (clicks[0]["x"], clicks[0]["y"]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        cv2.line(display_frame, (clicks[0]["x"], clicks[0]["y"]), (clicks[1]["x"], clicks[1]["y"]), (0, 0, 255), 2)
+        cv2.putText(display_frame, "STOP LINE", (clicks[0]["x"], clicks[0]["y"]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
     if len(clicks) == 4:
         cv2.rectangle(display_frame, (clicks[2]["x"], clicks[2]["y"]), (clicks[3]["x"], clicks[3]["y"]), (0, 165, 255), 2)
@@ -46,9 +46,9 @@ def render_calibration(frame):
 
     st.write("### Red-Light Calibration")
     if auto_light:
-        st.info("A traffic light was **auto-detected** (yellow). Please click **2 points** (top-left, bottom-right) to define the STOP ZONE.")
+        st.info("A traffic light was **auto-detected** (yellow). Please click **2 points** (top-left, bottom-right) to define the STOP LINE.")
     else:
-        st.warning("No traffic light auto-detected. Click **2 points** for the STOP ZONE, then **2 MORE points** for the LIGHT REGION.")
+        st.warning("No traffic light auto-detected. Click **2 points** for the STOP LINE, then **2 MORE points** for the LIGHT REGION.")
 
     value = streamlit_image_coordinates(pil_img, key="calib_image")
 
@@ -67,14 +67,14 @@ def render_calibration(frame):
 
     if len(clicks) == target_clicks:
         if st.button("Confirm Calibration", type="primary"):
-            stop_zone = (clicks[0]["x"], clicks[0]["y"], clicks[1]["x"], clicks[1]["y"])
+            stop_line = ((points[0][0], points[0][1]), (points[1][0], points[1][1])) if len(points) >= 2 else None
             light_region = auto_light
             if not auto_light:
                 light_region = (clicks[2]["x"], clicks[2]["y"], clicks[3]["x"], clicks[3]["y"])
                 
             return {
                 "LIGHT_REGION": light_region,
-                "STOP_ZONES": [stop_zone]
+                "STOP_LINE": stop_line
             }
 
     return None

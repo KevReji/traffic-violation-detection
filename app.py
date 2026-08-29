@@ -151,8 +151,22 @@ with st.sidebar:
         help="Flags vehicles crossing the defined stop line when the traffic light is red."
     )
 
+    is_image = uploaded is not None and uploaded.name.lower().endswith(('.jpg', '.jpeg', '.png'))
+    actual_enable_red_light = enable_red_light and not is_image
+    
+    needs_calibration = actual_enable_red_light and ("red_light_calibration" not in st.session_state)
+
     st.markdown("---")
-    run_btn = st.button("▶  Run Detection", use_container_width=True, type="primary")
+    if actual_enable_red_light and not needs_calibration:
+        st.success("Calibration complete.")
+        if st.button("Recalibrate"):
+            if "red_light_calibration" in st.session_state: del st.session_state["red_light_calibration"]
+            if "calib_auto_light" in st.session_state: del st.session_state["calib_auto_light"]
+            if "calib_clicks" in st.session_state: del st.session_state["calib_clicks"]
+            if "last_click" in st.session_state: del st.session_state["last_click"]
+            st.rerun()
+            
+    run_btn = st.button("▶   Run Detection", use_container_width=True, type="primary", disabled=needs_calibration)
 
 # ---------------------------------------------------------------------------
 # Main area — title + file info
@@ -275,7 +289,7 @@ if run_btn:
             enable_wrong_way=actual_enable_wrong_way,
             enable_red_light=actual_enable_red_light,
             light_region=calib.get("LIGHT_REGION"),
-            stop_zones=calib.get("STOP_ZONES"),
+            stop_line=calib.get("STOP_LINE"),
         )
 
         # Convert BGR (OpenCV default) -> RGB (what Streamlit expects) and push

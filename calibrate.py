@@ -45,7 +45,7 @@ def main():
     cv2.setMouseCallback("Calibration", mouse_callback)
     
     print("INSTRUCTIONS:")
-    print("1. Click 2 points to define the STOP_ZONES rectangle (top-left, bottom-right).")
+    print("1. Click 2 points along the actual stop line to define STOP_LINE.")
     if auto_light_coords:
         print("   A traffic light was AUTO-DETECTED (yellow box).")
     else:
@@ -66,8 +66,8 @@ def main():
             cv2.circle(canvas, p, 4, (0, 0, 255), -1)
             
         if len(points) >= 2:
-            cv2.rectangle(canvas, points[0], points[1], (0, 0, 255), 2)
-            cv2.putText(canvas, "STOP ZONE", (points[0][0], points[0][1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            cv2.line(canvas, points[0], points[1], (0, 0, 255), 2)
+            cv2.putText(canvas, "STOP LINE", (points[0][0], points[0][1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             
         if len(points) == 4:
             cv2.rectangle(canvas, points[2], points[3], (0, 165, 255), 2)
@@ -84,7 +84,7 @@ def main():
         if key == ord('q'):
             break
         elif key == ord('s'):
-            stop_zone = (points[0][0], points[0][1], points[1][0], points[1][1]) if len(points) >= 2 else None
+            stop_line = ((points[0][0], points[0][1]), (points[1][0], points[1][1])) if len(points) >= 2 else None if len(points) >= 2 else None
             light_region = auto_light_coords
             if len(points) == 4:
                 light_region = (points[2][0], points[2][1], points[3][0], points[3][1])
@@ -93,7 +93,7 @@ def main():
             if light_region:
                 print(f"LIGHT_REGION = {light_region}")
             if stop_zone:
-                print(f"STOP_ZONES = [{stop_zone}]")
+                print(f"STOP_LINE = {stop_line}")
                 
             os.makedirs("debug_traffic", exist_ok=True)
             vid_name = os.path.basename(VIDEO_PATH).split('.')[0]

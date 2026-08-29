@@ -109,3 +109,34 @@ def get_center(box):
     """Return the (cx, cy) center point of a bounding box."""
     x1, y1, x2, y2 = box
     return ((x1 + x2) / 2, (y1 + y2) / 2)
+
+
+def has_fully_crossed_line(box, line_p1, line_p2, direction='down'):
+    """
+    Check whether ALL 4 corners of a bounding box are strictly on the 'crossed'
+    side of a line defined by line_p1 and line_p2.
+    direction ('down', 'up', 'left', 'right') determines which side is 'crossed'.
+    """
+    bx1, by1, bx2, by2 = box
+    corners = [(bx1, by1), (bx2, by1), (bx2, by2), (bx1, by2)]
+    lx1, ly1 = line_p1
+    lx2, ly2 = line_p2
+    
+    dx, dy = 0, 0
+    if direction == 'down': dy = 1000
+    elif direction == 'up': dy = -1000
+    elif direction == 'right': dx = 1000
+    elif direction == 'left': dx = -1000
+    
+    test_cross = (lx1 + dx - lx1)*(ly2 - ly1) - (ly1 + dy - ly1)*(lx2 - lx1)
+    target_sign = 1 if test_cross > 0 else -1
+    if test_cross == 0: return False # degenerate
+    
+    for cx, cy in corners:
+        cross = (cx - lx1)*(ly2 - ly1) - (cy - ly1)*(lx2 - lx1)
+        sign = 1 if cross > 0 else (-1 if cross < 0 else 0)
+        # If any corner is on the 'uncrossed' side or exactly on the line, it hasn't fully crossed
+        if sign != target_sign:
+            return False
+            
+    return True
