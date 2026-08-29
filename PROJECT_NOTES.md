@@ -475,3 +475,41 @@ ed, yellow, green, unknown). The system correctly tracks vehicles crossing dynam
 - **React / Next.js Rewrite:** The user previously provided extensive wireframes and prompts for a dark/light mode React dashboard. A migration away from Streamlit toward this professional tech stack is a major impending milestone.
 - **Analytics & Graphs:** Further polishing the analytics reporting if we stay in Streamlit.
 - **Dummy Data Seeder:** Building a script to populate the database rapidly for dashboard testing.
+
+## Known Limitation — Red-Light Color Detection Across Cameras
+
+Red-light violation detection (traffic_light.py's HSV-based get_light_state()) was fully
+validated end-to-end on Redlight4.mp4: LIGHT_REGION = (1720, 120, 1760, 180),
+STOP_ZONES = [(0, 600, 1920, 650)]. Fires correctly, cross-checked against real vehicle
+trajectories, confidence/review-queue routing confirmed correct.
+
+Testing on a second camera (Redlight5.mp4) surfaced a real, diagnosed limitation of
+classical HSV thresholding on compressed CCTV/LED traffic signal footage: the brightest
+center of an LED bulb frequently "blooms" toward white/yellow in the video encoding, with
+the true red hue only present as a thin halo near the edge of the lit lens. This was
+confirmed directly via HSV pixel-value inspection (not assumed) at two crop sizes:
+
+- A looser crop around the full signal housing returned a dominant hue cluster of ~24-30
+  (yellow range), diluted further by reflections off adjacent unlit lenses.
+- A tightened crop around just the lit bulb still returned a dominant hue cluster of
+  ~22-29 (yellow), with a secondary cluster at hue ~11-14 (between the red and yellow
+  threshold ranges) and only a sparse handful of true low-hue (0-10) red pixels visible
+  at the object's edges.
+
+Two calibration attempts (general S/V threshold loosening in Stage 1, then a tightened
+per-video crop for Redlight5.mp4) were made per the project's two-attempt debugging cap,
+consistent with how other violation types (wrong-way, helmet) were handled. Both were
+reasoned, tested with real pixel data, and did not fully resolve the misclassification —
+the root cause (LED sensor blooming vs. compression artifacts on the true color signal)
+is a known hard problem for simple dominant-hue thresholding, not a coordinate or
+calibration mistake.
+
+Production-grade fix (out of scope for this project): HDR-aware or edge/halo-specific
+color sampling, or a small trained classifier for light-state recognition, rather than
+whole-region dominant-hue counting.
+
+Practical impact: The in-app calibration UI (Stage 4) and full red-light detection
+pipeline are demonstrated as working correctly and reliably on Redlight4.mp4. Redlight5.mp4
+demonstrates correct STOP_ZONES crossing-detection and correct in-app calibration UI
+behavior, but its light-color reading is not reliable without further work outside this
+project's scope.
