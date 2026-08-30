@@ -438,17 +438,53 @@ if show_dash:
                         veh_val = row_data['vehicle_type']
                         veh_disp = str(veh_val).title() if isinstance(veh_val, str) else str(veh_val)
                         
-                        st.markdown(f"""
-                        <div style="border: 1px solid #444; border-radius: 8px; padding: 15px; background-color: #1e1e1e; margin-top: 10px; margin-bottom: 10px;">
-                            <h4 style="margin-top: 0; font-variant: small-caps; color: #ccc;">VIOLATION INFORMATION</h4>
-                            <div style="color: #aaa; font-size: 14px; line-height: 1.6;">
-                                <div>ID: <span style="color: #fff;">#{row_data['id']}</span></div>
-                                <div>Type: <span style="color: #fff;">{v_type_disp}</span></div>
-                                <div>Timestamp: <span style="color: #fff;">{row_data['timestamp']}</span></div>
-                                <div>Vehicle: <span style="color: #fff;">{veh_disp}</span></div>
+                        score_val = float(row_data['confidence_score'])
+                        score_pct_str = f"{score_val * 100:.1f}%"
+                        bar_width = min(max(score_val * 100, 0), 100)
+                        
+                        if row_data.get('Status') == 'Needs Review':
+                            badge_bg = "rgba(230, 126, 34, 0.2)"
+                            badge_text = "#e67e22"
+                            badge_label = "NEEDS REVIEW"
+                        else:
+                            badge_bg = "rgba(39, 174, 96, 0.2)"
+                            badge_text = "#2ecc71"
+                            badge_label = "CONFIRMED"
+                        
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.markdown(f"""
+                            <div style="border: 1px solid #444; border-radius: 8px; padding: 15px; background-color: #1e1e1e; margin-top: 10px; margin-bottom: 10px; height: 90%;">
+                                <h4 style="margin-top: 0; font-variant: small-caps; color: #ccc;">VIOLATION INFORMATION</h4>
+                                <div style="color: #aaa; font-size: 14px; line-height: 1.6;">
+                                    <div>ID: <span style="color: #fff;">#{row_data['id']}</span></div>
+                                    <div>Type: <span style="color: #fff;">{v_type_disp}</span></div>
+                                    <div>Timestamp: <span style="color: #fff;">{row_data['timestamp']}</span></div>
+                                    <div>Vehicle: <span style="color: #fff;">{veh_disp}</span></div>
+                                </div>
                             </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                            """, unsafe_allow_html=True)
+                            
+                        with col2:
+                            st.markdown(f"""
+                            <div style="border: 1px solid #444; border-radius: 8px; padding: 15px; background-color: #1e1e1e; margin-top: 10px; margin-bottom: 10px; height: 90%;">
+                                <h4 style="margin-top: 0; font-variant: small-caps; color: #ccc;">CONFIDENCE & REVIEW</h4>
+                                <div style="font-size: 32px; font-weight: bold; color: #fff; margin-bottom: 8px;">
+                                    {score_pct_str}
+                                </div>
+                                <div style="width: 100%; background-color: #333; border-radius: 5px; height: 8px; margin-bottom: 15px; overflow: hidden;">
+                                    <div style="width: {bar_width}%; background: linear-gradient(90deg, #e74c3c, #f1c40f, #2ecc71); height: 100%; border-radius: 5px;"></div>
+                                </div>
+                                <div style="display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; background-color: {badge_bg}; color: {badge_text};">
+                                    {badge_label}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                        with col3:
+                            pass # Placeholder for Stage C.3 License Plate OCR
+                        
             else:
                 st.info("No violations detected yet.")
                 
