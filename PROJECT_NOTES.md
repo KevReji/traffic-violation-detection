@@ -573,3 +573,31 @@ This is a good UX improvement independent of the background image issue that sur
     - Updated insert_violation() to store the filename.
     - Updated pp.py to pass the uploaded file's name (uploaded.name) into the detection loop.
     - Updated eport.py to expose this new column in both the CSV exports and the PDF detail table.
+
+## ANPR Limitation — Plate Crop Reliability on Small/Distant/Obscured Vehicles
+
+Investigated two real cases where plate OCR returned no result, via direct crop-dimension
+and visual inspection (not assumed):
+
+1. **Small/distant vehicles (dashcam_test.mp4):** the plate-region crop is computed as a
+   fixed percentage of the vehicle's own bounding box (bottom 35% height, center 60%
+   width). For small/distant motorcycles, this produced crops as small as 19x18 to 27x14
+   pixels — far below what any OCR engine can reliably read. Larger/closer vehicles in
+   the same frame produced usable 76x50 to 117x61 pixel crops.
+
+2. **Multi-rider/obscured vehicles (TripleHelm1.mp4):** on a triple-riding motorcycle,
+   crop dimensions were healthy (~170x120 pixels), but visual inspection of the saved
+   crops showed no plate was actually visible within the cropped region — likely because
+   multiple riders' bodies/legs obscure the vehicle's lower-center area where the
+   percentage-based heuristic assumes a plate will be.
+
+Both findings point to the same underlying cause: the plate-region crop uses a fixed
+percentage-of-vehicle-box heuristic rather than actual plate detection, which is
+reliable on clearly-visible, appropriately-sized single vehicles but breaks down on
+small/distant vehicles (resolution) and multi-rider/obscured vehicles (wrong region
+entirely). This is consistent with ANPR's existing documented best-effort behavior,
+not a new bug — it correctly reports "not detected" rather than guessing in both cases.
+
+A production system would likely need a dedicated plate-detection model (rather than a
+fixed-percentage heuristic) to reliably locate plates regardless of vehicle distance or
+rider obstruction — out of scope for this project's timeline.
