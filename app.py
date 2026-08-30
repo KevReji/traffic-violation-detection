@@ -183,8 +183,13 @@ with st.sidebar:
             if "calib_clicks" in st.session_state: del st.session_state["calib_clicks"]
             if "last_click" in st.session_state: del st.session_state["last_click"]
             st.rerun()
-            
-    run_btn = st.button("▶   Run Detection", use_container_width=True, type="primary", disabled=needs_calibration)
+    run_btn = st.button("▶    Run Detection", use_container_width=True, type="primary", disabled=(needs_calibration or uploaded is None))
+
+# Clear old final frame if file is removed or changed
+if uploaded is None or uploaded.name != st.session_state.get("run_for_file"):
+    if "final_frame" in st.session_state:
+        del st.session_state["final_frame"]
+
 
 # ---------------------------------------------------------------------------
 # Main area — title + file info
@@ -193,17 +198,60 @@ if uploaded and needs_calibration:
     # Need to render calibration UI
     import tempfile
     import cv2
+    import os
     
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     tfile.write(uploaded.getvalue())
+    tfile.flush()
+    tfile.close()
+    
     cap = cv2.VideoCapture(tfile.name)
     ret, frame0 = cap.read()
     cap.release()
     
+    # Clean up the temp file
+    try:
+        os.unlink(tfile.name)
+    except Exception:
+        pass
+    
     if ret:
-        coords = render_calibration(frame0)
+        h, w = frame0.shape[:2]
+        inverse_scale = 1.0
+        display_frame = frame0
+        
+        MAX_WIDTH = 1280
+        if w > MAX_WIDTH:
+            scale = MAX_WIDTH / w
+            inverse_scale = w / MAX_WIDTH
+            new_w = MAX_WIDTH
+            new_h = int(h * scale)
+            display_frame = cv2.resize(frame0, (new_w, new_h))
+            
+        coords = render_calibration(display_frame)
         if coords:
-            st.session_state["red_light_calibration"] = coords
+            stop_line = coords["STOP_LINE"]
+            light_region = coords.get("LIGHT_REGION")
+            
+            scaled_stop_line = (
+                (int(stop_line[0][0] * inverse_scale), int(stop_line[0][1] * inverse_scale)),
+                (int(stop_line[1][0] * inverse_scale), int(stop_line[1][1] * inverse_scale))
+            )
+            
+            if light_region:
+                scaled_light_region = (
+                    int(light_region[0] * inverse_scale),
+                    int(light_region[1] * inverse_scale),
+                    int(light_region[2] * inverse_scale),
+                    int(light_region[3] * inverse_scale)
+                )
+            else:
+                scaled_light_region = None
+                
+            st.session_state["red_light_calibration"] = {
+                "STOP_LINE": scaled_stop_line,
+                "LIGHT_REGION": scaled_light_region
+            }
             st.rerun()
     else:
         st.error("Failed to read video frame for calibration.")
@@ -234,17 +282,16 @@ bg_css = f"""
 """
 st.markdown(bg_css, unsafe_allow_html=True)
 
-if not uploaded:
-    st.stop()
 
 
 
+if uploaded:
 # Save the upload to a temp file so OpenCV can open it by path
-with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as _tmp:
-    _tmp.write(uploaded.read())
-    tmp_path = _tmp.name
-
-st.caption(f"📁 **{uploaded.name}**  ·  {os.path.getsize(tmp_path) // 1024} KB")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as _tmp:
+        _tmp.write(uploaded.read())
+        tmp_path = _tmp.name
+    
+    st.caption(f"📁 **{uploaded.name}**  ·  {os.path.getsize(tmp_path) // 1024} KB")
 
 # ---------------------------------------------------------------------------
 # Processing block — runs only when "Run Detection" is clicked
@@ -254,7 +301,7 @@ st.caption(f"📁 **{uploaded.name}**  ·  {os.path.getsize(tmp_path) // 1024} K
 # Unified Dashboard Layout (Stage B)
 # ---------------------------------------------------------------------------
 rows = get_all_violations()
-show_dash = run_btn or rows
+show_dash = True
 
 if show_dash:
     st.markdown("---")
@@ -265,7 +312,30 @@ if show_dash:
     with col_live:
         title_ph = st.empty()
         st.markdown('<div class="cctv-feed">', unsafe_allow_html=True)
+        placeholder_html = """
+        <div style="
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            aspect-ratio: 16/9;
+            width: 100%;
+            border: 1px solid #21262D;
+            border-radius: 10px;
+            background-color: #161B22;
+            color: #8B949E;
+            font-size: 1.2rem;
+            font-weight: 600;
+        ">
+            Live Preview
+        </div>
+        """
+
         live_preview = st.empty()
+        if not run_btn and "final_frame" in st.session_state:
+            live_preview.image(st.session_state["final_frame"], use_container_width=True)
+        else:
+            live_preview.markdown(placeholder_html, unsafe_allow_html=True)
+        
         st.markdown('</div>', unsafe_allow_html=True)
         
         pb_col, stop_col = st.columns([4, 1])
@@ -283,15 +353,22 @@ if show_dash:
     log_ph = st.empty()
     download_ph = st.empty()
 
-    def update_dashboard(current_f, total_f, is_finished=False):
-        current_rows = get_all_violations()
+    def update_dashboard(current_f, total_f, is_finished=False, show_data=True):
+        if show_data:
+            current_rows = get_all_violations()
+        else:
+            current_rows = []
+            
         df = pd.DataFrame([dict(r) for r in current_rows]) if current_rows else pd.DataFrame()
         
         tot = len(df) if not df.empty else 0
         conf = len(df[df["review_needed"] == 0]) if not df.empty else 0
         rev = len(df[df["review_needed"] == 1]) if not df.empty else 0
         
-        status_txt = "Complete" if is_finished else f"{current_f} / {total_f} Frames"
+        if not show_data:
+            status_txt = "Idle"
+        else:
+            status_txt = "Complete" if is_finished else f"{current_f} / {total_f} Frames"
         
         with row1_ph.container():
             m1, m2, m3, m4 = st.columns(4)
@@ -373,9 +450,12 @@ if show_dash:
         elif not is_finished:
             download_ph.empty()
 
-    if run_btn:
+    if run_btn and uploaded is not None:
         clear_db()
         reset_state()
+        st.session_state["run_for_file"] = uploaded.name
+        if "final_frame" in st.session_state:
+            del st.session_state["final_frame"]
         
         vehicle_model_map = {
             "YOLOv8n (Fast)":             "yolov8n.pt",
@@ -434,6 +514,7 @@ if show_dash:
 
             rgb = cv2.cvtColor(frame_data["annotated_frame"], cv2.COLOR_BGR2RGB)
             live_preview.image(rgb, use_container_width=True)
+            st.session_state["final_frame"] = rgb
 
             for v in violations:
                 crop = crop_region(frame_data["original_frame"], v["box"], padding_pct=0.20)
@@ -476,16 +557,22 @@ if show_dash:
                 pct = min(int(fn / total * 100), 100)
                 progress_bar.progress(pct, text=f"Processing frame {fn} / {total}")
                 title_ph.markdown(f"#### CURRENTLY PROCESSING: Frame {fn} / {total}")
-                update_dashboard(fn, total, is_finished=False)
+                update_dashboard(fn, total, is_finished=False, show_data=True)
                 
         title_ph.markdown("#### CURRENTLY PROCESSING: Complete")
         progress_bar.empty()
         stop_btn_ph.empty()
-        update_dashboard(fn, total, is_finished=True)
+        update_dashboard(fn, total, is_finished=True, show_data=True)
 
-    elif rows:
-        title_ph.markdown("#### CURRENTLY PROCESSING: Complete")
-        update_dashboard(0, 0, is_finished=True)
+    else:
+        # Not currently running
+        show_real_data = (uploaded is not None) and (st.session_state.get("run_for_file") == uploaded.name)
+        if show_real_data:
+            title_ph.markdown("#### CURRENTLY PROCESSING: Complete")
+            update_dashboard(0, 0, is_finished=True, show_data=True)
+        else:
+            title_ph.markdown("#### CURRENTLY PROCESSING: Idle")
+            update_dashboard(0, 0, is_finished=False, show_data=False)
 
 # ---------------------------------------------------------------------------
 # Clean up temp file (best-effort — may already be gone on a later rerun)
