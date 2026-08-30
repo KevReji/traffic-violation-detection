@@ -553,3 +553,23 @@ project's scope.
 **Planned fix for next session:** instead of clearing live_preview on completion/early-stop, keep the LAST successfully processed annotated frame displayed there (rame_data['annotated_frame'] from the final loop iteration) rather than calling live_preview.empty(). This applies to both the normal-completion path and the Stop Detection early-break path. Only exception: if zero frames were processed at all (edge case), leaving it empty is fine since there's nothing to show.
 
 This is a good UX improvement independent of the background image issue that surfaced it - ending on a frozen 'here's the final result' frame is better for a demo than the feed vanishing. Do not touch detection logic, the Stop Detection button's break logic, or any other part of the finalization flow when implementing this - only change whether/what live_preview shows at the end.
+
+### Update (2026-08-30)
+
+- **Dashboard Reset Logic Fixed:** The dashboard now correctly resets to a zero/Idle/placeholder state when a file is removed or on a fresh page load. This is gated by comparing the uploaded filename against a stored un_for_file session value.
+  - **KNOWN LIMITATION:** This comparison is by filename only, not file identity. Re-uploading a DIFFERENT file with the SAME name as a previous run (e.g., uploading a new ideo.mp4 when the previous run was also ideo.mp4), without clicking "Run Detection" again, will incorrectly show the old run's stale data. This is low risk for normal usage/demos, but worth knowing if it ever comes up.
+- **Red-Light Calibration Rendering Bug Fixed:** Fixed a separate bug where the red-light calibration frame failed to render (showing a blank area with no console errors). The root cause was an unflushed tempfile being read by cv2.VideoCapture before the OS had fully written it to disk. 
+  - Fixed with explicit 	file.flush() and 	file.close() before reading. 
+  - Added a safety downscale (max 1280px width) for the displayed calibration frame to avoid oversized base64 payloads crashing the custom component's iframe.
+  - Click coordinates are correctly mathematically rescaled back to the original video's true resolution before being saved.
+  - Confirmed working via manual test on Redlight6.mp4.
+
+### Update (2026-08-30: Database Traceability Fix)
+
+- **Source Video Tracking Added:** Added a source_video column to the iolations database table. 
+  - **Reason:** During an investigation into false-positive helmet detections (reported via a previously generated PDF), it was discovered that the database and reporting pipeline had absolutely no way to trace a violation ID back to the video file that produced it. Without this, determining the source video for past runs was impossible.
+  - **Fix Details:** 
+    - Migrated the SQLite schema to include source_video TEXT. Existing records default to None/blank, preserving historical honesty.
+    - Updated insert_violation() to store the filename.
+    - Updated pp.py to pass the uploaded file's name (uploaded.name) into the detection loop.
+    - Updated eport.py to expose this new column in both the CSV exports and the PDF detail table.

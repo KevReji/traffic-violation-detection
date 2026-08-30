@@ -37,7 +37,8 @@ def init_db():
             evidence_image_path TEXT,               -- path to cropped vehicle image
             plate_image_path    TEXT,               -- path to cropped plate image (may be NULL)
             review_needed       BOOLEAN DEFAULT 0,  -- 1 if flagged for manual review
-            review_reason       TEXT                -- reason for review (e.g. 'low_confidence')
+            review_reason       TEXT,               -- reason for review (e.g. 'low_confidence')
+            source_video        TEXT                -- source filename
         )
     """)
     conn.commit()
@@ -46,6 +47,10 @@ def init_db():
     try:
         conn.execute("ALTER TABLE violations ADD COLUMN review_needed BOOLEAN DEFAULT 0")
         conn.execute("ALTER TABLE violations ADD COLUMN review_reason TEXT")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute("ALTER TABLE violations ADD COLUMN source_video TEXT")
     except sqlite3.OperationalError:
         pass  # Columns already exist
 
@@ -56,7 +61,8 @@ def init_db():
 def insert_violation(timestamp, frame_number, violation_type, vehicle_type,
                      confidence_score, plate_text=None,
                      evidence_image_path=None, plate_image_path=None,
-                     review_needed=False, review_reason=None):
+                     review_needed=False, review_reason=None,
+                     source_video=None):
     """
     Insert one violation record and return the new row id.
 
@@ -68,11 +74,11 @@ def insert_violation(timestamp, frame_number, violation_type, vehicle_type,
         INSERT INTO violations
             (timestamp, frame_number, violation_type, vehicle_type,
              confidence_score, plate_text, evidence_image_path, plate_image_path,
-             review_needed, review_reason)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             review_needed, review_reason, source_video)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (timestamp, frame_number, violation_type, vehicle_type,
              confidence_score, plate_text, evidence_image_path, plate_image_path,
-             review_needed, review_reason))
+             review_needed, review_reason, source_video))
     conn.commit()
     row_id = cur.lastrowid
     conn.close()
@@ -97,6 +103,10 @@ def clear_db():
     try:
         conn.execute("ALTER TABLE violations ADD COLUMN review_needed BOOLEAN DEFAULT 0")
         conn.execute("ALTER TABLE violations ADD COLUMN review_reason TEXT")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute("ALTER TABLE violations ADD COLUMN source_video TEXT")
     except sqlite3.OperationalError:
         pass  # Columns already exist
 

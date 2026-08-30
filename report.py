@@ -92,7 +92,7 @@ def _build_pdf(df, pdf_path):
     story.append(Paragraph("Violation Details", styles["Heading2"]))
 
     # Columns to display in the PDF detail table
-    display_cols = ["id", "timestamp", "frame_number", "violation_type",
+    display_cols = ["id", "timestamp", "source_video", "frame_number", "violation_type",
                     "vehicle_type", "confidence_score", "plate_text", "review_needed", "review_reason"]
 
     # Wrap headers and data in Paragraphs so they text-wrap instead of overflowing cells
@@ -113,7 +113,7 @@ def _build_pdf(df, pdf_path):
     header_cells = [Paragraph(c.replace("_", " ").title(), hdr_style) for c in display_cols]
     
     # Adjusted column widths to better balance long fields and headers (sum=18.0cm)
-    col_w   = [0.8*cm, 2.5*cm, 1.4*cm, 2.2*cm, 1.8*cm, 1.8*cm, 1.8*cm, 1.5*cm, 4.2*cm]
+    col_w   = [0.8*cm, 2.0*cm, 2.2*cm, 1.3*cm, 2.0*cm, 1.5*cm, 1.5*cm, 1.5*cm, 1.5*cm, 3.7*cm]
 
     detail_data = [header_cells]
     for _, row in df.iterrows():

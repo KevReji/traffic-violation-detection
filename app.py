@@ -286,7 +286,7 @@ st.markdown(bg_css, unsafe_allow_html=True)
 
 
 if uploaded:
-# Save the upload to a temp file so OpenCV can open it by path
+    # Save the upload to a temp file so OpenCV can open it by path
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as _tmp:
         _tmp.write(uploaded.read())
         tmp_path = _tmp.name
@@ -528,6 +528,7 @@ if show_dash:
                     confidence_score=round(v["confidence"], 4),
                     review_needed=v.get("review_needed", False),
                     review_reason=v.get("review_reason", None),
+                    source_video=uploaded.name,
                 )
                 ev_path = None
                 if crop is not None and crop.size > 0:
