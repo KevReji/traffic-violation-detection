@@ -108,8 +108,7 @@ with open(_css_path, encoding="utf-8") as _f:
 # Sidebar — all user-facing controls live here
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.image("assets/Logowobg.png", use_container_width=True)
-    st.markdown("<h3 style='text-align: center; margin-top: -15px;'>VAKS</h3>", unsafe_allow_html=True)
+    st.image("assets/Logowobg1.png", use_container_width=True)
     st.markdown("---")
 
     uploaded = st.file_uploader(

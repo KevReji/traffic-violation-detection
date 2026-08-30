@@ -282,3 +282,10 @@ div[data-testid="stProgress"] > div > div {
 div[data-testid="stAlert"] {
     border-radius: 8px;
 }
+
+/* --------------------------------------------------------------------------
+   11. Sidebar Logo Glow
+   -------------------------------------------------------------------------- */
+[data-testid="stSidebar"] [data-testid="stImage"] img {
+    filter: drop-shadow(0px 0px 12px rgba(0, 200, 255, 0.6));
+}
