@@ -419,6 +419,36 @@ if show_dash:
                 
                 styled_df = disp_df.style.map(color_status, subset=['Status']) if 'Status' in disp_df.columns else disp_df
                 st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                
+                if is_finished:
+                    st.markdown("---")
+                    def make_label(r):
+                        v_type_raw = r['violation_type']
+                        v_type_disp = display_names.get(v_type_raw, str(v_type_raw).title())
+                        return f"#{r['id']} - {v_type_disp} - {r['timestamp']}"
+                    
+                    labels = [make_label(r) for _, r in disp_df.iterrows()]
+                    selected_label = st.selectbox("Select a violation for details:", labels, key="violation_selector")
+                    
+                    if selected_label:
+                        selected_id = int(selected_label.split(" - ")[0].replace("#", ""))
+                        row_data = disp_df[disp_df['id'] == selected_id].iloc[0]
+                        v_type_disp = display_names.get(row_data['violation_type'], str(row_data['violation_type']).title())
+                        
+                        veh_val = row_data['vehicle_type']
+                        veh_disp = str(veh_val).title() if isinstance(veh_val, str) else str(veh_val)
+                        
+                        st.markdown(f"""
+                        <div style="border: 1px solid #444; border-radius: 8px; padding: 15px; background-color: #1e1e1e; margin-top: 10px; margin-bottom: 10px;">
+                            <h4 style="margin-top: 0; font-variant: small-caps; color: #ccc;">VIOLATION INFORMATION</h4>
+                            <div style="color: #aaa; font-size: 14px; line-height: 1.6;">
+                                <div>ID: <span style="color: #fff;">#{row_data['id']}</span></div>
+                                <div>Type: <span style="color: #fff;">{v_type_disp}</span></div>
+                                <div>Timestamp: <span style="color: #fff;">{row_data['timestamp']}</span></div>
+                                <div>Vehicle: <span style="color: #fff;">{veh_disp}</span></div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
             else:
                 st.info("No violations detected yet.")
                 
