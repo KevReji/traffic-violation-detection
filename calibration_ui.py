@@ -60,10 +60,18 @@ def render_calibration(frame):
                 st.session_state["last_click"] = value
                 st.rerun()
 
-    if st.button("Clear Clicks"):
-        st.session_state["calib_clicks"] = []
-        st.session_state["last_click"] = None
-        st.rerun()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Clear Clicks"):
+            st.session_state["calib_clicks"] = []
+            st.session_state["last_click"] = None
+            st.rerun()
+    with col2:
+        if auto_light and st.button("Clear Auto-Detection & Draw Manually"):
+            st.session_state["calib_auto_light"] = None
+            st.session_state["calib_clicks"] = []
+            st.session_state["last_click"] = None
+            st.rerun()
 
     if len(clicks) == target_clicks:
         if st.button("Confirm Calibration", type="primary"):
