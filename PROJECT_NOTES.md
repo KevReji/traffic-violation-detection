@@ -608,3 +608,7 @@ rider obstruction — out of scope for this project's timeline.
 
 ### Update (2026-09-20)
 - **Feature Teardown**: Wrong-way driving detection was deliberately removed from the codebase. The bounding-box size-growth heuristic was fundamentally unreliable (fisheye distortion, small-object tracking instability, dense-traffic false positives) and is being replaced by a properly-designed position/direction-based approach in a future stage.
+
+### Update (2026-09-20: Calibration UI & Cleanup)
+- **Red-Light Calibration Override:** Added a "Clear Auto-Detection & Draw Manually" button to calibration_ui.py. This serves as an escape hatch when the live YOLO model falsely auto-detects a traffic light (e.g., hallucinating a light in low-visibility footage like Redlight1.mp4). It discards the AI's coordinates and falls back to the manual 4-click setup.
+- **Repository Cleanup:** Purged accumulated one-off patch scripts and throwaway ANPR debug scripts to keep the working tree clean. Maintained reusable diagnostic tools (like debug_helmet.py).
