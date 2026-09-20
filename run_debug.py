@@ -18,7 +18,7 @@ reset_state()
 print("Starting generation...")
 for i, frame_data in enumerate(run_detection('test_videos/dashcam_test.mp4', model=vehicle_model, save_output=False, frame_skip=1)):
     # Run check_violations
-    v = check_violations(frame_data, helmet_model=helmet_model, enable_wrong_way=False, enable_red_light=False)
+    v = check_violations(frame_data, helmet_model=helmet_model, enable_red_light=False)
     if frame_data['frame_number'] >= 195:
         break
 print("Done processing.")

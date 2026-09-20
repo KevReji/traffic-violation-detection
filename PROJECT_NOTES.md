@@ -605,3 +605,6 @@ rider obstruction — out of scope for this project's timeline.
 ## Stage C Progress: UI Polish & Violation Details
 - **Stage C.3 (License Plate OCR):** Added OCR panel to violation details. Fixed a critical bug where Streamlit's textwrap dedent and Markdown engine interfered with HTML string interpolation, causing the panel to render as a raw code block instead of HTML.
 - **Stage C.4 (Evidence Snapshot & Layout):** Added the cropped evidence_image_path to the violation detail view. Adjusted layout to a 4-column structure ([1.5, 1, 1, 1]) so the Evidence Snapshot occupies the left side prominently (~33% width) while the three info panels share the right side, closely matching the target mockup proportions without breaking internal panel rendering.
+
+### Update (2026-09-20)
+- **Feature Teardown**: Wrong-way driving detection was deliberately removed from the codebase. The bounding-box size-growth heuristic was fundamentally unreliable (fisheye distortion, small-object tracking instability, dense-traffic false positives) and is being replaced by a properly-designed position/direction-based approach in a future stage.

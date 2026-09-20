@@ -136,15 +136,6 @@ with st.sidebar:
     # Default False for CCTV compatibility.
     # The bounding-box growth heuristic produces false positives on
     # fisheye / wide-angle lenses due to barrel distortion.
-    enable_wrong_way = st.checkbox(
-        "Enable Wrong-Way Detection",
-        value=False,
-        help=(
-            "Flags vehicles whose bounding box grows consistently over 15 frames "
-            "(proxy for approaching the camera). Works reliably on dashcams and "
-            "straight CCTV angles. Disable for fisheye / wide-angle cameras."
-        ),
-    )
     
     enable_red_light = st.checkbox(
         "Enable Red-Light Detection",
@@ -381,7 +372,7 @@ if show_dash:
         else:
             counts = pd.Series(dtype=int)
             
-        ALL_TYPES = ['helmet', 'triple_riding', 'illegal_parking', 'wrong_way', 'red_light']
+        ALL_TYPES = ['helmet', 'triple_riding', 'illegal_parking', 'red_light']
         counts = counts.reindex(ALL_TYPES, fill_value=0)
         
         chart_df = counts.reset_index()
@@ -391,7 +382,6 @@ if show_dash:
             'helmet': 'Helmet',
             'triple_riding': 'Triple Riding',
             'illegal_parking': 'Illegal Parking',
-            'wrong_way': 'Wrong-Way',
             'red_light': 'Red-Light'
         }
         chart_df["Violation Type"] = chart_df["Violation Type"].map(display_names)
@@ -574,7 +564,6 @@ f'{plate_content}'
         helmet_model = load_model(helmet_pt)
 
         is_image = uploaded.name.lower().endswith(('.jpg', '.jpeg', '.png'))
-        actual_enable_wrong_way = enable_wrong_way and not is_image
         actual_enable_red_light = enable_red_light and not is_image
 
         if is_image:
@@ -609,7 +598,6 @@ f'{plate_content}'
             violations = check_violations(
                 frame_data,
                 helmet_model=helmet_model,
-                enable_wrong_way=actual_enable_wrong_way,
                 enable_red_light=actual_enable_red_light,
                 light_region=calib.get("LIGHT_REGION"),
                 stop_line=calib.get("STOP_LINE"),
