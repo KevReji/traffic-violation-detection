@@ -389,7 +389,54 @@ if show_dash:
         print(f"--- Chart DataFrame (Frame {current_f}) ---")
         print(chart_df)
         
-        chart_ph.bar_chart(chart_df, x="Violation Type", y="Count")
+        import altair as alt
+        
+        if chart_df["Count"].sum() > 0:
+            display_types = chart_df["Violation Type"].replace({"Helmet": "No Helmet"})
+            chart_df["Legend_Label"] = display_types + " - " + chart_df["Count"].astype(str)
+            
+            base_colors = {
+                'Helmet': '#FF9F1C',
+                'Triple Riding': '#E71D36',
+                'Illegal Parking': '#2EC4B6',
+                'Red-Light': '#9D4EDD'
+            }
+            active_df = chart_df[chart_df["Count"] > 0]
+            
+            # Map colors strictly to the dynamic legend labels
+            domain = active_df["Legend_Label"].tolist()
+            range_ = [base_colors.get(vt, '#888888') for vt in active_df["Violation Type"]]
+            
+            total_count = active_df["Count"].sum()
+            fig = alt.Chart(active_df).mark_arc(innerRadius=65).encode(
+                theta=alt.Theta(field="Count", type="quantitative"),
+                color=alt.Color(
+                    field="Legend_Label", 
+                    type="nominal", 
+                    scale=alt.Scale(domain=domain, range=range_), 
+                    legend=alt.Legend(
+                        title="Violations Logged",
+                        titleColor='#BBBBBB',
+                        titleFontSize=14,
+                        titleFontWeight='bold',
+                        labelFontSize=15,
+                        symbolSize=150,
+                        labelColor='#E0E0E0',
+                        padding=15,
+                        rowPadding=12
+                    )
+                ),
+                tooltip=["Violation Type", "Count"]
+            ).properties(height=320)
+        else:
+            empty_df = pd.DataFrame([{"Violation Type": "No Violations", "Count": 1}])
+            fig = alt.Chart(empty_df).mark_arc(innerRadius=65).encode(
+                theta=alt.Theta(field="Count", type="quantitative"),
+                color=alt.Color(field="Violation Type", type="nominal", scale=alt.Scale(range=['#333333'])),
+                tooltip=["Violation Type"]
+            ).properties(height=320)
+            
+        chart_ph.altair_chart(fig, use_container_width=True)
 
         with log_ph.container():
             if not df.empty:
