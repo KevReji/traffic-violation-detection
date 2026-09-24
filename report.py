@@ -15,6 +15,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
                                  Paragraph, Spacer, Image)
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.utils import ImageReader
 
 from database import get_all_violations
 
@@ -156,21 +157,50 @@ def _build_pdf(df, pdf_path):
     # ?? Thumbnails (embed evidence images where they exist) ????????????
     story.append(Paragraph("Evidence Thumbnails", styles["Heading2"]))
     thumb_added = False
+    thumbnail_cells = []
+    max_w = 8 * cm
+    max_h = 6 * cm
     for _, row in df.iterrows():
         img_path = row.get("evidence_image_path", "")
         if img_path and os.path.exists(str(img_path)):
-            caption = (f"ID {row['id']} | {row['violation_type']} | "
-                       f"Frame {row['frame_number']} | Plate: {row.get('plate_text','N/A')}")
-            story.append(Paragraph(caption, styles["Normal"]))
+            caption_text = (
+                f"<para align='center' size='9'>"
+                f"<b>ID:</b> {row['id']} | <b>Type:</b> {row['violation_type']} | "
+                f"<b>Frame:</b> {row['frame_number']} | <b>Plate:</b> {row.get('plate_text', 'N/A')}"
+                f"</para>"
+            )
+            caption = Paragraph(caption_text, styles["Normal"])
             try:
-                img = Image(img_path, width=5*cm, height=3*cm)
-                story.append(img)
+                img_reader = ImageReader(img_path)
+                orig_w, orig_h = img_reader.getSize()
+                scale = min(max_w / orig_w, max_h / orig_h)
+                img = Image(img_path, width=orig_w * scale, height=orig_h * scale)
+                thumbnail_cells.append([caption, img])
             except Exception:
-                story.append(Paragraph(f"[image not renderable: {img_path}]", styles["Normal"]))
-            story.append(Spacer(1, 0.2*cm))
+                thumbnail_cells.append([
+                    caption,
+                    Paragraph(f"[image not renderable: {img_path}]", styles["Normal"])
+                ])
             thumb_added = True
 
-    if not thumb_added:
+    if thumb_added:
+        # Chunk into pairs; pad last row with empty string if odd count
+        pairs = [thumbnail_cells[i:i+2] for i in range(0, len(thumbnail_cells), 2)]
+        if len(pairs[-1]) == 1:
+            pairs[-1].append("")
+        grid = Table(pairs, colWidths=[9*cm, 9*cm])
+        grid.setStyle(TableStyle([
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+            ("BOX",           (0, 0), (-1, -1), 1, colors.lightgrey),
+            ("INNERGRID",     (0, 0), (-1, -1), 1, colors.lightgrey),
+            ("TOPPADDING",    (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+        ]))
+        story.append(grid)
+    else:
         story.append(Paragraph("No evidence images available.", styles["Normal"]))
 
     doc.build(story)
