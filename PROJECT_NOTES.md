@@ -612,3 +612,13 @@ rider obstruction — out of scope for this project's timeline.
 ### Update (2026-09-20: Calibration UI & Cleanup)
 - **Red-Light Calibration Override:** Added a "Clear Auto-Detection & Draw Manually" button to calibration_ui.py. This serves as an escape hatch when the live YOLO model falsely auto-detects a traffic light (e.g., hallucinating a light in low-visibility footage like Redlight1.mp4). It discards the AI's coordinates and falls back to the manual 4-click setup.
 - **Repository Cleanup:** Purged accumulated one-off patch scripts and throwaway ANPR debug scripts to keep the working tree clean. Maintained reusable diagnostic tools (like debug_helmet.py).
+
+### Update (2026-09-24: Dashboard & Reporting UI Polish)
+- **PDF Evidence Thumbnails:** Replaced the single-column thumbnail layout in eport.py with a professional 2-column grid (Table) using ImageReader. Bounded image scaling, added TableStyle borders/padding, and HTML-styled caption text.
+- **Evidence Snapshot:** Enhanced the dashboard's ev_html Evidence Snapshot with a high-tech security camera look (relative container, red glowing ox-shadow, absolute-positioned REC overlay with CSS animated blinking red dot). Fixed layout overflow using max-height: 220px; object-fit: contain.
+- **Reports Section Expander:** Wrapped the CSV/PDF download buttons at the bottom of the dashboard in an st.expander("Generate Reports"). Injected custom CSS to darken the expander background against the main app background for better readability.
+- **Fallback Crash Fix:** Fixed an UnboundLocalError for ase64 when ev_path = None by removing a shadowing local import inside the conditional block.
+- **Session Breakdown Chart:** Upgraded the summary chart from a standard st.bar_chart to an ltair donut chart (mark_arc).
+  - Added a custom dynamic legend mapping colors to violation counts.
+  - Enhanced the legend typography (custom padding, font weight, color).
+  - *Design Decision:* Explored absolute positioning for the legend and custom HTML metric cards for the top stats, but ultimately reverted to the clean, default Streamlit layouts for better maintainability and visual balance.
