@@ -445,7 +445,6 @@ if show_dash:
                         full_row = df[df['id'] == selected_id].iloc[0]
                         ev_path = full_row.get('evidence_image_path')
                         if ev_path and str(ev_path).strip() and os.path.exists(str(ev_path)):
-                            import base64
                             with open(str(ev_path), "rb") as img_f:
                                 ev_b64 = base64.b64encode(img_f.read()).decode('utf-8')
                             ev_html = f'<img src="data:image/jpeg;base64,{ev_b64}" style="width: 100%; border-radius: 6px; margin-bottom: 10px;" />'
