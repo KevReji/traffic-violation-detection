@@ -517,28 +517,36 @@ f'{plate_content}'
                 
         if is_finished and not df.empty:
             with download_ph.container():
-                csv_path, pdf_path = generate_reports()
-                c1, c2 = st.columns(2)
-                with c1:
-                    if csv_path and os.path.exists(csv_path):
-                        with open(csv_path, "rb") as f:
-                            st.download_button(
-                                "⬇️  Download CSV Report",
-                                f,
-                                file_name="violations_report.csv",
-                                mime="text/csv",
-                                use_container_width=True,
-                            )
-                with c2:
-                    if pdf_path and os.path.exists(pdf_path):
-                        with open(pdf_path, "rb") as f:
-                            st.download_button(
-                                "⬇️  Download PDF Report",
-                                f,
-                                file_name="violations_report.pdf",
-                                mime="application/pdf",
-                                use_container_width=True,
-                            )
+                with st.expander("Generate Reports"):
+                    st.markdown("### SESSION REPORT EXPORT")
+                    st.markdown(
+'<style>'
+'div[data-testid="stExpander"] { background-color: rgba(25, 25, 25, 0.95) !important; border: 1px solid #555 !important; border-radius: 8px; } '
+'div[data-testid="stExpander"] summary p { color: #ffffff !important; font-weight: bold !important; font-size: 16px !important; }'
+'</style>', unsafe_allow_html=True)
+                    
+                    csv_path, pdf_path = generate_reports()
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if csv_path and os.path.exists(csv_path):
+                            with open(csv_path, "rb") as f:
+                                st.download_button(
+                                    "⬇️  Download CSV Report",
+                                    f,
+                                    file_name="violations_report.csv",
+                                    mime="text/csv",
+                                    use_container_width=True,
+                                )
+                    with c2:
+                        if pdf_path and os.path.exists(pdf_path):
+                            with open(pdf_path, "rb") as f:
+                                st.download_button(
+                                    "⬇️  Download PDF Report",
+                                    f,
+                                    file_name="violations_report.pdf",
+                                    mime="application/pdf",
+                                    use_container_width=True,
+                                )
         elif not is_finished:
             download_ph.empty()
 
