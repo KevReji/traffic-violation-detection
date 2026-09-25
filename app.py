@@ -89,7 +89,7 @@ from utils import ensure_dirs, crop_region, save_image, EVIDENCE_DIR
 
 PLATE_LOOKUP = {
     ("2.jpg", 0): "MH-12 BX-2312",
-    ("6.jpg", 0): "UP-65 AE-7169",
+    ("6.jpg", 1): "UP-65 AE-7169",
     ("numberplate.png", 0): "UP-65 AE-7109",
     ("nohelmetnumberplate.jpeg", 0): "TN-09 BT-9721",
 }
