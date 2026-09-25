@@ -384,12 +384,20 @@ def detect_helmet_violation(rider_det, moto_det, frame=None, helmet_model=None, 
 def _find_associated_persons(moto_box, persons):
     """
     Return all person detections whose bounding box overlaps the motorcycle
-    box with IoU >= PERSON_MOTO_IOU_THRESHOLD.
+    box with IoU >= PERSON_MOTO_IOU_THRESHOLD, AND whose horizontal center
+    falls within the motorcycle's left/right boundaries.
     """
     associated = []
+    mx1, my1, mx2, my2 = moto_box
     for p in persons:
+        px1, py1, px2, py2 = p["box"]
         iou = compute_iou(moto_box, p["box"])
-        if iou >= PERSON_MOTO_IOU_THRESHOLD:
+        
+        # Check if the person's spine is physically positioned over the bike
+        px_center = (px1 + px2) / 2.0
+        is_centered = (mx1 <= px_center <= mx2)
+        
+        if iou >= PERSON_MOTO_IOU_THRESHOLD and is_centered:
             associated.append(p)
     return associated
 
