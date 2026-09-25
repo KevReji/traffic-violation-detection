@@ -317,8 +317,9 @@ def detect_helmet_violation(rider_det, moto_det, frame=None, helmet_model=None, 
     if x2 <= x1 or y2 <= y1:
         return False   # degenerate box
 
-    # Use the full rider bounding box (Top 25% crop removed for better context)
-    rider_crop = frame[y1:y2, x1:x2]
+    # Crop only the top 25% (head/shoulder region)
+    head_y2 = y1 + int((y2 - y1) * 0.25)
+    rider_crop = frame[y1:head_y2, x1:x2]
 
     if DEBUG_HELMET:
         import os
