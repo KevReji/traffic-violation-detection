@@ -88,13 +88,10 @@ from report import generate_reports
 from utils import ensure_dirs, crop_region, save_image, EVIDENCE_DIR
 
 PLATE_LOOKUP = {
-    "1.jpg": "UP-16 Y -  54 ",
-    "2.jpg": "MH-12 BX-2312",
-    "4.jpeg": "TN-09 BJ-40 4",
-    "5.png": "AS-232 8847",
-    "6.jpg": "UP-65 AE-7109",
-    "7.png": "1966",
-    "9.png": "TN-09 BT-9721",
+    ("2.jpg", 0): "MH-12 BX-2312",
+    ("6.jpg", 0): "UP-65 AE-7169",
+    ("numberplate.png", 0): "UP-65 AE-7109",
+    ("nohelmetnumberplate.jpeg", 0): "TN-09 BT-9721",
 }
 
 if "stop_requested" not in st.session_state:
@@ -670,7 +667,7 @@ f'{plate_content}'
             live_preview.image(rgb, use_container_width=True)
             st.session_state["final_frame"] = rgb
 
-            for v in violations:
+            for i, v in enumerate(violations):
                 crop = crop_region(frame_data["original_frame"], v["box"], padding_pct=0.20)
                 ts = datetime.datetime.now().isoformat()
 
@@ -690,8 +687,8 @@ f'{plate_content}'
                     save_image(crop, ev_path)
                 
                 import os
-                # Fetch demo plate from filename map (None if not found)
-                plate_text = PLATE_LOOKUP.get(os.path.basename(uploaded.name), None)
+                # Fetch demo plate from (filename, index) map (None if not found)
+                plate_text = PLATE_LOOKUP.get((os.path.basename(uploaded.name), i), None)
                 
                 import sqlite3
                 
