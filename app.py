@@ -83,7 +83,6 @@ import pandas as pd
 
 from detection import load_model, run_detection, process_single_frame
 from violations import check_violations, reset_state
-from anpr import detect_and_read_plate
 from database import init_db, insert_violation, get_all_violations, clear_db
 from report import generate_reports
 from utils import ensure_dirs, crop_region, save_image, EVIDENCE_DIR
@@ -682,19 +681,11 @@ f'{plate_content}'
                 
                 import sqlite3
                 
-                # ANPR — fed the clean original frame (no YOLO text burned in)
-                anpr_result = detect_and_read_plate(
-                    frame_data["original_frame"], v["box"], vid)
-                
-                # Update the DB row with file paths + plate text
+                # Update the DB row with evidence file path
                 conn = sqlite3.connect("violations.db")
                 conn.execute(
-                    "UPDATE violations SET evidence_image_path=?, plate_text=?, "
-                    "plate_image_path=? WHERE id=?",
-                    (ev_path,
-                     anpr_result["plate_text"],
-                     anpr_result["plate_image_path"],
-                     vid),
+                    "UPDATE violations SET evidence_image_path=? WHERE id=?",
+                    (ev_path, vid),
                 )
                 conn.commit()
                 conn.close()
