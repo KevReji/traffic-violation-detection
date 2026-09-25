@@ -399,7 +399,35 @@ def _find_associated_persons(moto_box, persons):
         
         if iou >= PERSON_MOTO_IOU_THRESHOLD and is_centered:
             associated.append(p)
-    return associated
+            
+    # Deduplicate YOLO "ghost" detections (e.g. model detects both a torso and a full body).
+    # If a smaller box is > 85% inside a larger box, they are the same person.
+    unique_riders = []
+    for p1 in associated:
+        b1 = p1["box"]
+        a1 = (b1[2] - b1[0]) * (b1[3] - b1[1])
+        is_ghost = False
+        
+        for p2 in unique_riders:
+            b2 = p2["box"]
+            a2 = (b2[2] - b2[0]) * (b2[3] - b2[1])
+            
+            # Compute intersection area
+            xA = max(b1[0], b2[0])
+            yA = max(b1[1], b2[1])
+            xB = min(b1[2], b2[2])
+            yB = min(b1[3], b2[3])
+            interArea = max(0, xB - xA) * max(0, yB - yA)
+            
+            # Intersection over the smaller box's area (IoA)
+            if interArea / min(a1, a2) > 0.85:
+                is_ghost = True
+                break
+                
+        if not is_ghost:
+            unique_riders.append(p1)
+
+    return unique_riders
 
 
 def _debug_triple(frame_number, timestamp_sec, moto, persons, associated):
