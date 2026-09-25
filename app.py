@@ -88,8 +88,13 @@ from report import generate_reports
 from utils import ensure_dirs, crop_region, save_image, EVIDENCE_DIR
 
 PLATE_LOOKUP = {
+    ("1.jpg", 0): "UP-16 Y -  54 ",
     ("2.jpg", 0): "MH-12 BX-2312",
+    ("4.jpeg", 0): "TN-09 BJ-40 4",
+    ("5.png", 0): "AS-232 8847",
     ("6.jpg", 0): "UP-65 AE-7169",
+    ("7.png", 0): "1966",
+    ("9.png", 0): "TN-09 BT-9721",
     ("numberplate.png", 0): "UP-65 AE-7109",
     ("nohelmetnumberplate.jpeg", 0): "TN-09 BT-9721",
 }
