@@ -85,12 +85,12 @@ def detect_and_read_plate(frame, vehicle_box, violation_id):
     veh_h = y2 - y1   # vehicle box height in pixels
     veh_w = x2 - x1   # vehicle box width  in pixels
 
-    # Vertical: start 65% down from the top of the vehicle box
-    plate_y1 = y1 + int(veh_h * 0.65)
+    # Vertical: start 50% down from the top of the vehicle box (v2 heuristic)
+    plate_y1 = y1 + int(veh_h * 0.50)
     plate_y2 = y2                         # bottom edge of the vehicle box
 
-    # Horizontal: take the centre 60% (20% margin each side)
-    h_margin = int(veh_w * 0.20)
+    # Horizontal: take the centre 90% (5% margin each side)
+    h_margin = int(veh_w * 0.05)
     plate_x1 = x1 + h_margin
     plate_x2 = x2 - h_margin
 
@@ -138,27 +138,17 @@ def detect_and_read_plate(frame, vehicle_box, violation_id):
 def _preprocess_plate(img):
     """
     Light pre-processing to improve OCR accuracy.
-    Resizes to a fixed height, sharpens, then binarises with Otsu threshold.
+    Upscales 3x to preserve aspect ratio, then converts to grayscale.
     """
-    target_h = 64
     h, w = img.shape[:2]
     if h == 0 or w == 0:
         return img
 
-    scale   = target_h / h
-    new_w   = max(1, int(w * scale))
-    resized = cv2.resize(img, (new_w, target_h), interpolation=cv2.INTER_CUBIC)
-
-    grey = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-
-    # Sharpen
-    kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-    sharp  = cv2.filter2D(grey, -1, kernel)
-
-    # Otsu binarisation -- good for high-contrast plate text
-    _, binary = cv2.threshold(sharp, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-    return cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
+    upscaled = cv2.resize(img, (0, 0), fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+    grey = cv2.cvtColor(upscaled, cv2.COLOR_BGR2GRAY)
+    
+    # EasyOCR expects 3 channels in this pipeline hook
+    return cv2.cvtColor(grey, cv2.COLOR_GRAY2BGR)
 
 
 # ---------------------------------------------------------------------------
@@ -194,9 +184,9 @@ if __name__ == "__main__":
     # Mirror the crop logic so we can print what region will be searched
     veh_h = by2 - by1
     veh_w = bx2 - bx1
-    px1 = bx1 + int(veh_w * 0.20)
-    px2 = bx2 - int(veh_w * 0.20)
-    py1 = by1 + int(veh_h * 0.65)
+    px1 = bx1 + int(veh_w * 0.05)
+    px2 = bx2 - int(veh_w * 0.05)
+    py1 = by1 + int(veh_h * 0.50)
     py2 = by2
 
     print("[test] Image size        : {}x{}".format(fw, fh))
