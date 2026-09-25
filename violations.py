@@ -42,7 +42,7 @@ COOLDOWN_SECONDS = 5.0
 # TUNING GUIDE:
 #   - If persons are detected but NOT associated -> lower this value (try 0.05)
 #   - If unrelated pedestrians are wrongly counted -> raise it (try 0.25)
-PERSON_MOTO_IOU_THRESHOLD = 0.04
+PERSON_MOTO_IOU_THRESHOLD = 0.10
 
 
 # ---------------------------------------------------------------------------
