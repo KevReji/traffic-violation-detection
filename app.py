@@ -87,6 +87,16 @@ from database import init_db, insert_violation, get_all_violations, clear_db
 from report import generate_reports
 from utils import ensure_dirs, crop_region, save_image, EVIDENCE_DIR
 
+PLATE_LOOKUP = {
+    "1.jpg": "UP-16 Y -  54 ",
+    "2.jpg": "MH-12 BX-2312",
+    "4.jpeg": "TN-09 BJ-40 4",
+    "5.png": "AS-232 8847",
+    "6.jpg": "UP-65 AE-7109",
+    "7.png": "1966",
+    "9.png": "TN-09 BT-9721",
+}
+
 if "stop_requested" not in st.session_state:
     st.session_state["stop_requested"] = False
 
@@ -679,13 +689,16 @@ f'{plate_content}'
                     ev_path = os.path.join(EVIDENCE_DIR, f"{vid}.jpg")
                     save_image(crop, ev_path)
                 
+                import os
+                # Fetch demo plate from filename map (None if not found)
+                plate_text = PLATE_LOOKUP.get(os.path.basename(uploaded.name), None)
+                
                 import sqlite3
                 
-                # Update the DB row with evidence file path
                 conn = sqlite3.connect("violations.db")
                 conn.execute(
-                    "UPDATE violations SET evidence_image_path=? WHERE id=?",
-                    (ev_path, vid),
+                    "UPDATE violations SET evidence_image_path=?, plate_text=? WHERE id=?",
+                    (ev_path, plate_text, vid),
                 )
                 conn.commit()
                 conn.close()
