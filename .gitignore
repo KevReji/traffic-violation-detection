@@ -1,17 +1,131 @@
-violations.db
+# ==============================================================================
+# Comprehensive .gitignore for AI-Powered Traffic Violation Detection System
+# Stack: Python, Streamlit, PyTorch / YOLOv8, OpenCV, SQLite, LaTeX, Word
+# ==============================================================================
+
+# --- Python Bytecode & Runtime Caches ---
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+
+# --- Virtual Environments ---
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# --- Secrets, API Keys & Credentials (Zero-Leak Policy) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*token*
+*secret*
+*credentials*
+mcp_config.json
+
+# --- Streamlit ---
+# Preserve .streamlit/config.toml (required for enableStaticServing), ignore secrets
+.streamlit/*
+!.streamlit/config.toml
+!.streamlit/config.example.toml
+
+# --- IDEs & OS System Artifacts ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# --- Databases & Runtime Transaction Logs ---
+violations.db
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+# --- Live Runtime Outputs & Captured Evidence ---
 evidence/
 output/
-*.mp4
-.streamlit/
-__pycache__/
-*.pyc
-*.pt
-!models/*.pt
-violations.db
+*.log
+
+# --- Debug Runs & Temporary Image Crop Archives ---
 debug_crops/
 debug_helmet_crops/
+debug_traffic/
+tests_and_diagnostics/debug_crops_archive/
+anpr_experimental_sandbox/debug_results/
 test_scene.jpg
 your_photo.jpg
-debug_traffic/
+
+# --- Large Media Files & Test Datasets ---
+# Excluded from git repository to prevent bloat; kept locally for testing
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wmv
+test_videos/
+Dataset/
+
+# --- Deep Learning Model Weights & Checkpoints ---
+# Ultralytics auto-downloads official weights (yolov8n/s/m) on first run
+*.pt
+*.pth
+*.onnx
+*.engine
+*.tflite
+# Allow custom fine-tuned models housed inside models/
+!models/helmet_yolov8s_v2_motorcycle.pt
+!models/helmet_yolov8s_v1_map74.pt
+!models/helmet_yolov8n_v1_map74.pt.pt
+
+# --- Microsoft Word & Office Temporary Lock Files ---
+~$*.docx
+~$*.xlsx
+~$*.pptx
+*.tmp
+
+# --- LaTeX Intermediate Build Artifacts ---
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+project/latex_build/*.aux
+project/latex_build/*.log
+project/latex_build/*.out
+project/latex_build/*.toc
+project/latex_build/*.synctex.gz
+
+# --- Academic Report, College Black Book & Thesis Documents ---
+# Kept private and local; excluded from public GitHub code repository
+project/
+
+# --- Node / NPM Artifacts ---
+node_modules/
+npm-debug.log*
+package-lock.json

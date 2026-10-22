@@ -112,11 +112,13 @@ def detect_and_read_plate(frame, vehicle_box, violation_id):
 
     # Pick the highest-confidence text segment
     plate_text = None
+    plate_confidence = 0.0
     if results:
         best     = max(results, key=lambda r: r[2])   # r[2] is confidence score
         raw_text = best[1].strip().upper()
         if raw_text:
             plate_text = raw_text
+            plate_confidence = float(best[2])
 
     # -- Step 4: save the raw plate crop (before processing) ----------------
     plate_image_path = None
@@ -126,6 +128,7 @@ def detect_and_read_plate(frame, vehicle_box, violation_id):
 
     return {
         "plate_text":       plate_text,
+        "plate_confidence": plate_confidence,
         "plate_image_path": plate_image_path,
         "plate_crop":       plate_region,
     }
