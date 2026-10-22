@@ -950,3 +950,48 @@ eport.py with a professional 2-column grid (Table) using ImageReader. Bounded im
 4. **MCP & Environment Tooling Audit:**
    - Checked active MCP server configurations: `~/.gemini/config/mcp_config.json` is empty (0 bytes); no GitHub MCP server or external MCP tools are currently active.
    - Local CLI verification: Local `git` is configured (`user.name: Kevin Reji`, `user.email: kevreji@gmail.com`). `node`, `npx`, and `gh` are not recognized in system PATH (can be installed via `winget install OpenJS.NodeJS.LTS`).
+
+
+---
+
+### Update (2026-10-23: GitHub MCP Connectivity, Repository Refactor, Remote Deployment & Production Documentation)
+
+1. **GitHub MCP Server Integration & Connectivity:**
+   - Detected and validated runtime dependencies: Node.js `v24.22.1` and `npx 11.19.1`.
+   - Connected and authenticated the official GitHub Model Context Protocol (MCP) server (`@modelcontextprotocol/server-github`) in `~/.gemini/config/mcp_config.json` using a personal access token.
+   - Tested and verified live bidirectional communication across all 26 exposed MCP tools (`create_repository`, `list_commits`, `get_file_contents`, etc.).
+
+2. **Repository Architecture Audit & Pruning:**
+   - **Secrets & Credentials Audit:** Verified 100% clean status with zero hardcoded API keys, tokens, or environment secrets.
+   - **Tailored `.gitignore` Deployment:** Implemented comprehensive ignore rules covering Python runtime bytecode (`__pycache__/`, `*.pyc`), virtual environments (`venv/`), database files (`violations.db`), captured evidence snapshots (`evidence/`), runtime outputs (`output/`), large video files (`*.mp4`), base model weights (`*.pt`), Word lock files (`~$*.docx`), and LaTeX compilation artifacts (`*.aux`, `*.synctex.gz`).
+   - **Critical Server Config Preservation:** Explicitly preserved `.streamlit/config.toml` (`enableStaticServing = true`) to ensure web assets render cleanly on fresh clones.
+   - **Duplicate Asset Deletion:** Removed the redundant `UI/` folder (10 duplicate mockup files totaling ~30MB) using `git rm -r UI/`, consolidating all active visual assets in `assets/` and `app/static/`.
+   - **Base Model Untracking:** Untracked the heavy `yolov8n.pt` base model from Git index (`git rm --cached yolov8n.pt`) while preserving the local weights file on disk for CPU execution.
+   - **Root Tidy-Up:** Deleted redundant root `DIAGRAM_PROMPTS.md` (identically preserved in `project/docs/GEMINI_DIAGRAM_PROMPTS.md`).
+
+3. **Commit History Preservation & Structural Reorganization:**
+   - Staged 8 diagnostic and calibration scripts from root into `tests_and_diagnostics/` (`calibrate.py`, `debug_helmet.py`, `run_debug.py`, etc.), with Git recording 100% clean rename tracking to preserve file history.
+   - Staged isolated 2-stage ANPR test harness scripts (`test_two_stage_batch.py`, `benchmark_models.py`, `test_easyocr.py`) and documentation in `anpr_experimental_sandbox/`.
+   - Consolidated raw test videos into `test_videos/` and plate test images into `Dataset/numberplates/`.
+   - Verified that all core application modules (`detection`, `violations`, `database`, `report`, `confidence`, `anpr`) continue to import cleanly with zero errors.
+
+4. **Academic Project Isolation (Option A Enforced):**
+   - In accordance with user preference to maintain a clean software repository, strictly excluded the entire `project/` directory (college Black Book Word documents, research papers, LaTeX template, and Overleaf ZIP archive) in `.gitignore`.
+   - Excluded raw `Dataset/` and `test_videos/` folders from Git tracking to avoid repository bloat.
+
+5. **Initial Git Commit & GitHub MCP Remote Creation:**
+   - Sealed master refactor commit `2d8e6dc`: *"Refactor: Streamline repository architecture, isolate diagnostics, and prune legacy assets"*.
+   - Programmatically created a new private repository `traffic-violation-detection` under GitHub account `KevReji` using the GitHub MCP `create_repository` tool.
+   - Added remote `origin` (`https://github.com/KevReji/traffic-violation-detection.git`), pushed the `master` branch to GitHub, and established upstream tracking (`origin/master`).
+
+6. **Production README.md Generation & Deployment:**
+   - Authored and committed comprehensive `README.md` (commit `fab91cc`):
+     - Interactive Mermaid system architecture and dataflow diagram.
+     - Tech stack badges (Python, YOLOv8, PyTorch, Streamlit, OpenCV, SQLite).
+     - Mathematical formulations for the cranial 25% crop, center-of-mass spine alignment condition ($mx_1 \le px_{\text{center}} \le mx_2$), 4-corner signed determinant stop-line crossing, and two-tier confidence scoring.
+     - 2-stage ANPR squish-factor elimination and aspect-ratio filter ($1.2 \le \text{AR} \le 5.0$).
+     - Step-by-step local installation and setup guide (virtualenv, dependency installation, automatic weight resolution).
+     - Streamlit operational guide and complete directory tree.
+     - Academic team attribution and benchmarks ($\text{mAP@0.50} = 0.825$, 24.6 effective FPS on Intel Core i7 CPU).
+   - Pushed `README.md` to GitHub and verified live rendering via GitHub MCP `get_file_contents`.
+   - Working tree verified 100% clean on `master` branch.
